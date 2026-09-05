@@ -25,13 +25,14 @@ The deliverable is a renderable scene in the player, not isolated JSON.
 This `SKILL.md` is the thin control plane. Load only one-level references that
 match the task. Do not open the whole reference library.
 
-Always read `references/player-contract.md` before creating, editing, fixing, or
+Always read `references/player-contract.md` and
+`references/renderer-constraints.md` before creating, editing, fixing, or
 verifying a scene. If a routed reference is unavailable, continue using the
 inline rules in this file.
 
 | User intent | References to read when present |
 | --- | --- |
-| Any new/edit/fix Lottie scene | `references/player-contract.md` |
+| Any new/edit/fix Lottie scene | `references/player-contract.md`, `references/renderer-constraints.md` |
 | JSON structure, keyframes, slots, shapes, assets | `references/lottie-spec-map.md` |
 | Logo animation | `references/recipe-logo.md`, `references/motion-taste.md`, `references/design-taste.md` |
 | Typography, title, quote, text reveal | `references/recipe-typography.md`, `references/design-taste.md`, `references/motion-taste.md` |
@@ -121,17 +122,23 @@ These few defaults are non-negotiable and apply to every designed scene. Load
   when they improve the properties panel.
 - For SVG input, preserve the viewBox, normalize styling, watch fill rules and
   intersections, and verify the result in Skottie.
-- Native Lottie text/text slots (`ty:5`) render in this player when the scene
-  ships its font: drop a `.ttf`/`.otf`/`.ttc` next to `lottie.json`, declare it in
-  `fonts.list` with `fFamily` matching the font's embedded family name, and
-  reference it from text documents. The loader passes every scene font to Skottie.
-  Prefer native text; reach for vector/shape text only for deliberate path effects
-  (stroke-on, glyph morphs, handwriting). See the player-contract "Native Text"
-  reference.
+- Convert text to outlines. Native Lottie text (`ty:5`) renders in this player's
+  Skottie preview, but our production playback is lottie-web 5.x SVG, which shapes
+  text through CSS `@font-face` instead of the scene's embedded font file. Letter
+  spacing, baselines, and wrap points land differently, and a font that fails to
+  load falls back to a system face with no error. So bake glyphs to `ty:"sh"`
+  outlines for anything shipped as a production asset. This costs the text-slot
+  editing affordance — that trade is correct here, and when copy is still in flux,
+  author with native text and outline it as the last step before delivery. The
+  compatibility scanner treats `ty:5` as BLOCK. See
+  `references/renderer-constraints.md`.
 
 ## Verification
 
-Before finishing:
+A scene is done only when the completion conditions in
+`references/renderer-constraints.md` all pass, in order. Do not stop early:
+"it looks right in the preview" is not done, because the preview is not the
+renderer that ships.
 
 1. Confirm the intended target file path is
    `public/projects/<project>/<scene-N>/lottie.json`.
@@ -141,15 +148,31 @@ Before finishing:
    node -e "JSON.parse(require('fs').readFileSync('public/projects/<project>/<scene-N>/lottie.json','utf8'))"
    ```
 
-3. Confirm the official player is running and the scene appears in
-   `GET /__context`.
-4. Inspect pinned frames in the browser. For new scenes, check frame `0`,
-   midpoint, and `op - 1`.
-5. Confirm the background policy matches the use case.
-6. Check for blank canvas, missing assets, unstyled shapes, wrong layer order,
+3. Run the lottie-web compatibility scanner and get **zero BLOCK findings**
+   (exit code 0):
+
+   ```bash
+   node scripts/check-lottie-web-compat.mjs public/projects/<project>/<scene-N>/lottie.json
+   ```
+
+   WARN findings do not fail the run. Each one marks a construct the two
+   renderers may draw differently — carry it into step 4 and look at it.
+4. Open the comparison page and pin frames `0`, the midpoint, and `op - 1`:
+
+   ```
+   /compare.html?src=/projects/<project>/<scene-N>/lottie.json
+   ```
+
+   Inspect **both** panels at each frame — Skottie on the left, lottie-web SVG
+   on the right. Checking only one panel is not verification. At the same time
+   check for blank canvas, missing assets, unstyled shapes, wrong layer order,
    bad easing, awkward timing, cropped content, text overflow, and visible SVG
    artifacts.
-7. Finish only when the animation renders cleanly and feels intentional.
+5. Remove the cause of any difference between the panels. If the difference
+   traces to a WARN finding, replace that construct with the alternative given
+   in `references/renderer-constraints.md`.
+6. Confirm the background policy matches the use case. Use the comparison
+   page's checkerboard to confirm transparency.
 
 ## Maintenance Evals
 

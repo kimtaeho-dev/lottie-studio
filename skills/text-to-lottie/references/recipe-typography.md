@@ -20,13 +20,16 @@ handwritten/path reveals, text morphs, counters, and short message-led scenes.
 - Choose the type voice deliberately: serif for human/editorial authority,
   grotesque for product/function, monospace for technical labels, expressive
   display type when the word itself is the subject.
-- Prefer native Lottie text (`ty:5`). It renders in the player when the scene
-  ships its font: drop a `.ttf`/`.otf`/`.ttc` next to `lottie.json`, declare it in
-  the Lottie `fonts.list` with `fFamily` matching the font's embedded family name,
-  and reference it from text documents via `f`. See the "Native Text" section of
-  the player-contract reference. Fall back to vector/shape text only for
-  deliberate path-level effects (stroke-on reveals, glyph morphs, handwriting),
-  not as a font workaround.
+- Ship text as vector/shape outlines (`ty:"sh"`). Native Lottie text (`ty:5`)
+  renders in the Skottie preview when the scene ships its font, so author with it
+  while the copy is still moving — drop a `.ttf`/`.otf`/`.ttc` next to
+  `lottie.json`, declare it in the Lottie `fonts.list` with `fFamily` matching the
+  font's embedded family name, and reference it from text documents via `f` (see
+  the "Native Text" section of the player-contract reference). But production
+  playback is lottie-web 5.x SVG, which shapes text through CSS `@font-face`, so
+  spacing and baselines drift and a missing font silently becomes a system font.
+  Bake glyphs to outlines before delivery; the compatibility scanner treats `ty:5`
+  as BLOCK. See `renderer-constraints.md`.
 - For **editable multi-word slots** (headlines, subtitles, quotes, CTAs), author the
   text document as **box text** — add `sz: [w, h]` and `ps: [x, y]` so a longer edit
   wraps at a fixed width instead of overflowing. Keep **point text** (no `sz`) for
@@ -124,9 +127,10 @@ handwritten/path reveals, text morphs, counters, and short message-led scenes.
   replacement, reveal, or crossfade.
 - Expose useful slots: text content when supported, accent color, background
   color for full-frame cards, and timing/scale only when user editing matters.
-- Expose a text slot when the copy should be user-editable from the properties
+- Expose a text slot while the copy is still being decided from the properties
   panel. The slot still requires the scene's font to be present, same as any
-  native text.
+  native text — and it does not survive outlining, so treat it as an authoring
+  aid rather than something the delivered asset keeps.
 
 ## Common Failure Modes
 

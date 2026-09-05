@@ -49,7 +49,9 @@ public/
 - Put image assets next to the scene and reference them by bare filename in
   `assets[].p`, for example `"p": "logo.svg"`.
 - Put font files (`.ttf`, `.otf`, `.ttc`) next to the scene to render native text.
-  The loader passes every scene font to Skottie; see "Native Text" below.
+  The loader passes every scene font to Skottie; see "Native Text" below. Native
+  text is preview-only in practice — production assets ship outlined, see
+  `renderer-constraints.md`.
 
 ## Target Scene Policy
 
@@ -185,6 +187,15 @@ values (a color, a size) should usually share a single slot, so they rarely need
 
 ## Native Text
 
+> **Production caveat.** Everything in this section describes how the *Skottie
+> preview* handles text. Our production playback is lottie-web 5.x SVG, which
+> shapes text through CSS `@font-face` rather than the scene's embedded font, so
+> letter spacing, baselines, and wrap points differ — and a font that fails to
+> load silently falls back to a system face. The compatibility scanner treats
+> `ty:5` as BLOCK. Use native text while authoring and iterating on copy, then
+> bake glyphs to `ty:"sh"` outlines before the scene ships. See
+> `renderer-constraints.md`.
+
 Native Lottie text layers (`ty:5`) and text slots render in this player, as long
 as the scene supplies the font. The loader discovers every `.ttf`/`.otf`/`.ttc`
 file in the scene folder and hands all of them to `MakeManagedAnimation`
@@ -203,10 +214,11 @@ it does not collide with an image. If no matching font is present, the text laye
 renders transparent (the classic "blank text" failure).
 
 - Text slots (editable text in the properties panel) work the same way — the slot
-  still needs the font present. Use them by default for primary scene copy:
-  headlines, hooks, titles, taglines, CTAs, closing lockups, product/feature
-  names, and short status/result callouts. Centered, self-contained copy is
-  slot-safe; let it re-center after string edits.
+  still needs the font present. Use them while copy is still moving: headlines,
+  hooks, titles, taglines, CTAs, closing lockups, product/feature names, and short
+  status/result callouts. Centered, self-contained copy is slot-safe; let it
+  re-center after string edits. Slots are an authoring convenience, not a shipping
+  format — outlining the final copy retires the slot.
 - Decide slotting per text layer. Leave a layer unslotted only when that layer's
   exact string controls layout or timing: code/terminal rows, hand-spaced lists,
   cursor/token offsets, masks, path/morph/per-character reveals, or tiny
@@ -224,10 +236,11 @@ renders transparent (the classic "blank text" failure).
 - If a text slot renders blank, check: (1) slot property is `"a": 1`; (2) font
   file is present and `fFamily` matches the embedded family name; (3) top-level
   slot document matches the layer fallback document.
-- Vector/shape text (baking glyphs to `ty:"sh"` outlines) is no longer required
-  for text to render. Use it only when you deliberately want path-level control
-  (stroke-on reveals, glyph morphs, handwritten traces) — not as a font
-  workaround.
+- Vector/shape text (baking glyphs to `ty:"sh"` outlines) is the shipping form.
+  It is not required for text to *render* in this preview, but it is what makes a
+  scene render identically in lottie-web, and it is also what you want for
+  path-level control (stroke-on reveals, glyph morphs, handwritten traces).
+  Outline before delivery; the cost is losing the text slot.
 
 ### Point Text vs Box Text
 

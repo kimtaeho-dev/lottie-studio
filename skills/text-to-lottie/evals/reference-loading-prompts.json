@@ -16,8 +16,8 @@
       "references/recipe-product-promo.md"
     ],
     "expected_behavior": [
-      "use native Lottie text and ship the Inter font file in the scene folder",
-      "declare the font in fonts.list with fFamily matching the embedded family name"
+      "bake the Inter glyphs to ty:\"sh\" outlines so the card renders identically in lottie-web",
+      "if native text is used while iterating, ship the Inter font file in the scene folder and declare it in fonts.list with fFamily matching the embedded family name"
     ]
   },
   {

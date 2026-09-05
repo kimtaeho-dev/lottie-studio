@@ -32,12 +32,14 @@ normal animation work.
   to transparent output unless the user asks for a background.
 - Slots are type-compatible with their referenced properties.
 - Controls expose useful edits without cluttering the panel.
-- Text scenes ship their font: a `.ttf`/`.otf`/`.ttc` sits next to `lottie.json`,
-  is declared in `fonts.list` with `fFamily` matching the embedded family name,
-  and is referenced from text documents. Native text is preferred over vector
-  text; vector/shape text appears only for deliberate path effects.
-- Text slots are used for copy that should be user-editable, with the font
-  present so it renders.
+- Delivered text scenes are outlined: glyphs are baked to `ty:"sh"` shapes and no
+  `ty:5` layer remains, so the scene renders identically in lottie-web 5.x SVG.
+  The compatibility scanner reports zero BLOCK findings.
+- While copy is still in flux, native text is fine: a `.ttf`/`.otf`/`.ttc` sits
+  next to `lottie.json`, is declared in `fonts.list` with `fFamily` matching the
+  embedded family name, and is referenced from text documents. Text slots are used
+  for copy that should be editable, with the font present so it renders. Both are
+  authoring states, not shipping states.
 - Editable multi-word text slots (headlines, subtitles, quotes, CTAs) use box text
   (`sz`/`ps` on the text document) so a longer edit wraps inside a fixed width
   instead of overflowing; single glyphs, numeric/tile scenes, and choreographed type
