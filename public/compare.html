@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>렌더러 비교 — Skottie vs lottie-web</title>
+
+    <!--
+      같은 lottie.json 을 두 렌더러에 동시에 물려 프레임 단위로 비교한다.
+        왼쪽  Skia Skottie (CanvasKit)  = 이 스튜디오의 미리보기 엔진
+        오른쪽 lottie-web 5.x SVG        = 우리 프로덕션 재생 엔진
+
+      빌드에 엮이지 않는 순수 정적 파일이다. /public 에 있으므로 dev 서버와
+      `vite build` 결과물 양쪽에서 /compare.html 로 그대로 열린다.
+      번들러를 타지 않으므로 두 렌더러는 CDN 에서 직접 받는다.
+    -->
+    <script src="https://cdn.jsdelivr.net/npm/canvaskit-wasm@0.41.1/bin/full/canvaskit.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lottie-web@5.13.0/build/player/lottie.min.js"></script>
+
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101012;
+        --panel: #17171a;
+        --line: #2a2a30;
+        --text: #e8e8ea;
+        --muted: #9a9aa4;
+        --accent: #6ea8fe;
+        --ok: #5bd68a;
+        --warn: #f0c05a;
+        --err: #f0736a;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 13px/1.5 ui-sans-serif, system-ui, "Apple SD Gothic Neo",
+          "Malgun Gothic", "Noto Sans KR", sans-serif;
+      }
+
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+
+      .meta { color: var(--muted); font-variant-numeric: tabular-nums; }
+      .spacer { flex: 1 1 auto; }
+
+      button {
+        min-width: 68px;
+        padding: 6px 12px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #202027;
+        color: var(--text);
+        font: inherit;
+        cursor: pointer;
+      }
+      button:hover:not(:disabled) { border-color: #3b3b45; }
+      button:disabled { opacity: 0.45; cursor: default; }
+
+      /* 프레임 슬라이더는 넓게. 이 페이지의 주된 조작 수단이다. */
+      #frameRange { flex: 1 1 260px; min-width: 180px; accent-color: var(--accent); }
+
+      #frameNumber {
+        width: 86px;
+        padding: 6px 8px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #202027;
+        color: var(--text);
+        font: inherit;
+        font-variant-numeric: tabular-nums;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        padding: 16px;
+      }
+      @media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); } }
+
+      .panel {
+        min-width: 0;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel);
+        overflow: hidden;
+      }
+
+      .panel-head {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      .panel-head strong { font-size: 13px; }
+      .panel-head span { color: var(--muted); font-size: 12px; }
+
+      /* 투명 배경이 보이도록 체커보드. 두 무대에 같은 격자를 깐다 —
+         한쪽만 불투명하면 알파 차이를 못 본다. */
+      .stage {
+        display: grid;
+        place-items: center;
+        padding: 16px;
+        background-color: #1c1c20;
+        background-image:
+          linear-gradient(45deg, #26262c 25%, transparent 25%, transparent 75%, #26262c 75%),
+          linear-gradient(45deg, #26262c 25%, transparent 25%, transparent 75%, #26262c 75%);
+        background-size: 16px 16px;
+        background-position: 0 0, 8px 8px;
+      }
+
+      .surface {
+        width: 100%;
+        max-width: 100%;
+        /* aspect-ratio 는 씬의 w/h 로 JS 가 채운다. */
+      }
+      .surface > canvas,
+      .surface > svg { display: block; width: 100%; height: 100%; }
+      #lottieStage { line-height: 0; }
+
+      .status {
+        padding: 8px 12px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 12px;
+        min-height: 33px;
+      }
+
+      footer { padding: 0 16px 24px; }
+
+      details {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel);
+      }
+      summary { padding: 10px 12px; cursor: pointer; font-weight: 600; }
+
+      #log {
+        margin: 0;
+        padding: 0 12px 12px;
+        font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .ok { color: var(--ok); }
+      .warn { color: var(--warn); }
+      .err { color: var(--err); }
+
+      #banner {
+        display: none;
+        margin: 16px 16px 0;
+        padding: 10px 12px;
+        border: 1px solid var(--err);
+        border-radius: 8px;
+        background: #2a1a1a;
+        color: var(--err);
+      }
+      #banner.shown { display: block; }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <h1>렌더러 비교</h1>
+      <span class="meta" id="sceneMeta">씬 로드 중…</span>
+      <span class="spacer"></span>
+      <button id="playToggle" disabled>재생</button>
+      <input type="range" id="frameRange" min="0" max="0" step="1" value="0" disabled
+             aria-label="프레임" />
+      <input type="number" id="frameNumber" min="0" max="0" step="1" value="0" disabled
+             aria-label="프레임 번호" />
+    </header>
+
+    <div id="banner" role="alert"></div>
+
+    <main>
+      <section class="panel">
+        <div class="panel-head">
+          <strong>Skottie (CanvasKit)</strong>
+          <span>미리보기 엔진</span>
+        </div>
+        <div class="stage"><div class="surface" id="skottieStage"><canvas id="skottieCanvas"></canvas></div></div>
+        <div class="status" id="skottieStatus">대기 중…</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <strong>lottie-web 5.13 · SVG</strong>
+          <span>프로덕션 엔진</span>
+        </div>
+        <div class="stage"><div class="surface" id="lottieStage"></div></div>
+        <div class="status" id="lottieStatus">대기 중…</div>
+      </section>
+    </main>
+
+    <footer>
+      <details open>
+        <summary>진단 로그</summary>
+        <pre id="log"></pre>
+      </details>
+    </footer>
+
+    <script>
+      "use strict";
+
+      // ---------------------------------------------------------------------
+      // 상수 · DOM
+      // ---------------------------------------------------------------------
+
+      const DEFAULT_SRC = "/projects/main-project/scene-1/lottie.json";
+      const FONT_EXTENSIONS = [".ttf", ".otf", ".ttc", ".woff2", ".woff"];
+
+      const el = {
+        meta: document.getElementById("sceneMeta"),
+        play: document.getElementById("playToggle"),
+        range: document.getElementById("frameRange"),
+        number: document.getElementById("frameNumber"),
+        banner: document.getElementById("banner"),
+        skottieStage: document.getElementById("skottieStage"),
+        skottieCanvas: document.getElementById("skottieCanvas"),
+        skottieStatus: document.getElementById("skottieStatus"),
+        lottieStage: document.getElementById("lottieStage"),
+        lottieStatus: document.getElementById("lottieStatus"),
+        log: document.getElementById("log"),
+      };
+
+      function log(message, level) {
+        const line = document.createElement("span");
+        if (level) line.className = level;
+        line.textContent = message + "\n";
+        el.log.appendChild(line);
+      }
+
+      function fatal(message) {
+        el.banner.textContent = message;
+        el.banner.classList.add("shown");
+        log(message, "err");
+      }
+
+      // ---------------------------------------------------------------------
+      // 씬 경로
+      // ---------------------------------------------------------------------
+
+      /**
+       * ?src=/projects/<project>/<scene-N>/lottie.json
+       * 같은 출처의 절대 경로만 받는다. 원격 URL 을 그대로 태우면 이 페이지가
+       * 임의 JSON 로더가 되므로 막는다.
+       */
+      function resolveSrc() {
+        const raw = new URLSearchParams(location.search).get("src");
+        if (!raw) return DEFAULT_SRC;
+        if (!raw.startsWith("/") || raw.startsWith("//")) {
+          log(`src 파라미터가 같은 출처의 절대 경로가 아니다 (${raw}). 기본 씬으로 되돌린다.`, "warn");
+          return DEFAULT_SRC;
+        }
+        return raw;
+      }
+
+      const SRC = resolveSrc();
+      const SCENE_DIR = SRC.slice(0, SRC.lastIndexOf("/")); // 예: /projects/main-project/scene-1
+      const basename = (url) => url.split("/").pop();
+
+      // ---------------------------------------------------------------------
+      // 씬 에셋 목록
+      // ---------------------------------------------------------------------
+
+      /**
+       * 정적 서버에는 디렉터리 목록이 없다. scenes 플러그인이 씬마다
+       * images/fonts 파일 목록을 주므로 그걸 먼저 쓴다.
+       *   dev 서버   GET /__scenes
+       *   빌드 결과물 GET /scenes.json   (플러그인이 정적으로 emit 한다)
+       * 둘 다 없으면 lottie.json 안의 참조만으로 후보를 만든다. 이 경우
+       * 폰트 파일명은 알 수 없어서 fontCandidates 가 이름으로 추측한다.
+       */
+      async function listSceneAssets(doc) {
+        for (const endpoint of ["/__scenes", "/scenes.json"]) {
+          try {
+            const res = await fetch(endpoint, { cache: "no-store" });
+            if (!res.ok) continue;
+            // 두 엔드포인트 모두 ScenesTree, 즉 { projects: [...] } 를 준다.
+            const tree = await res.json();
+            for (const project of (tree && tree.projects) || []) {
+              for (const scene of project.scenes || []) {
+                if (scene.lottie !== SRC) continue;
+                const images = scene.images || [];
+                const fonts = scene.fonts || [];
+                log(`${endpoint} 로 에셋 목록 확인: 이미지 ${images.length}개, 폰트 ${fonts.length}개`);
+                return { images, fonts, fromServer: true };
+              }
+            }
+          } catch {
+            /* 다음 엔드포인트로 넘어간다. */
+          }
+        }
+
+        log("에셋 목록 엔드포인트를 못 읽었다. lottie.json 안의 참조만으로 경로를 추정한다.", "warn");
+        const images = [];
+        for (const asset of doc.assets || []) {
+          // e:1 은 base64 인라인이라 별도 파일이 없다.
+          if (asset.p && asset.e !== 1) images.push(`${SCENE_DIR}/${asset.p}`);
+        }
+        return { images, fonts: [], fromServer: false };
+      }
+
+      // ---------------------------------------------------------------------
+      // 폰트 주입 (lottie-web 쪽)
+      // ---------------------------------------------------------------------
+
+      const normalize = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+
+      function stripExtension(name) {
+        const dot = name.lastIndexOf(".");
+        return dot > 0 ? name.slice(0, dot) : name;
+      }
+
+      /**
+       * 한 폰트 항목에 붙일 파일 후보를 우선순위대로 만든다.
+       *
+       * Skottie 는 폰트의 *내장* 패밀리 이름으로 매칭하므로 파일명이 자유롭다.
+       * 반대로 CSS 는 파일을 직접 가리켜야 해서, 이름이 맞아떨어지는 파일을
+       * 먼저 놓고 나머지 폰트 파일을 뒤에 붙인다. 브라우저는 src 목록에서
+       * 처음으로 성공한 URL 을 쓴다.
+       */
+      function fontCandidates(font, sceneFonts) {
+        const candidates = [];
+        const push = (url) => { if (url && !candidates.includes(url)) candidates.push(url); };
+
+        // 1) fPath 가 파일명/상대경로면 씬 디렉터리 기준으로 붙인다.
+        if (typeof font.fPath === "string" && font.fPath && !/^(https?:)?\/\//.test(font.fPath)) {
+          push(font.fPath.startsWith("/") ? font.fPath : `${SCENE_DIR}/${font.fPath}`);
+        }
+
+        // 2) 이름이 겹치는 씬 폰트 파일.
+        const wanted = [font.fFamily, font.fName].filter(Boolean).map(normalize);
+        const matched = [];
+        const rest = [];
+        for (const url of sceneFonts) {
+          const stem = normalize(stripExtension(basename(url)));
+          const hit = wanted.some((w) => w && (stem.includes(w) || w.includes(stem)));
+          (hit ? matched : rest).push(url);
+        }
+        matched.forEach(push);
+
+        // 3) 이름으로 못 고르면 남은 폰트 파일 전부를 후보로 둔다.
+        rest.forEach(push);
+
+        // 4) 서버 목록이 없을 때의 마지막 수단: 흔한 확장자로 이름을 추측한다.
+        if (candidates.length === 0) {
+          for (const stem of [font.fName, font.fFamily].filter(Boolean)) {
+            for (const ext of FONT_EXTENSIONS) push(`${SCENE_DIR}/${stem}${ext}`);
+          }
+        }
+        return candidates;
+      }
+
+      /**
+       * doc.fonts.list 의 항목마다 @font-face 를 만들어 넣고, 실제로 로드됐는지
+       * 확인해서 보고한다.
+       *
+       * 이 처리가 없으면 lottie-web 은 조용히 시스템 폰트로 폴백한다. 그러면
+       * 두 패널이 비슷해 보여서 오히려 차이를 못 보고, 비교 페이지 자체를
+       * 믿을 수 없게 된다.
+       */
+      async function injectFonts(doc, sceneFonts) {
+        const list = (doc.fonts && doc.fonts.list) || [];
+        if (list.length === 0) {
+          log("텍스트 폰트 없음 — @font-face 주입을 건너뛴다.");
+          return { injected: 0, loaded: 0, families: [] };
+        }
+
+        const rules = [];
+        const families = [];
+
+        for (const font of list) {
+          const family = font.fFamily || font.fName;
+          if (!family) continue;
+
+          const candidates = fontCandidates(font, sceneFonts);
+          if (candidates.length === 0) {
+            log(`폰트 "${family}": 후보 파일을 찾지 못했다.`, "err");
+            families.push({ family, candidates, loaded: false });
+            continue;
+          }
+
+          // format() 은 일부러 붙이지 않는다. 브라우저가 모르는 형식 문자열이
+          // 들어가면 멀쩡한 파일까지 통째로 건너뛰기 때문이다.
+          // font-weight 를 100 900 범위로 열어둬야 lottie-web 이 굵기를
+          // 요청해도 시스템 폰트로 새지 않고 이 face 에 매칭된다.
+          rules.push(
+            `@font-face{font-family:"${family}";font-style:normal;font-weight:100 900;` +
+              `src:${candidates.map((u) => `url("${u}")`).join(",")};}`,
+          );
+          families.push({ family, candidates, loaded: false });
+        }
+
+        const style = document.createElement("style");
+        style.id = "injected-scene-fonts";
+        style.textContent = rules.join("\n");
+        document.head.appendChild(style);
+        log(`@font-face ${rules.length}개 주입:\n${rules.join("\n")}`);
+
+        // 주입만으로는 부족하다. lottie-web 은 초기화 시점에 글자 폭을 재므로
+        // 그 전에 실제 로드가 끝나 있어야 한다.
+        let loaded = 0;
+        for (const entry of families) {
+          try {
+            const faces = await document.fonts.load(`16px "${entry.family}"`);
+            entry.loaded = faces.length > 0 && document.fonts.check(`16px "${entry.family}"`);
+          } catch (err) {
+            entry.loaded = false;
+            entry.error = String(err);
+          }
+          if (entry.loaded) {
+            loaded++;
+            log(`폰트 "${entry.family}" 로드 성공 (후보 ${entry.candidates.length}개 중)`, "ok");
+          } else {
+            log(
+              `폰트 "${entry.family}" 로드 실패 — lottie-web 이 시스템 폰트로 폴백한다.\n` +
+                `  후보: ${entry.candidates.join(", ")}`,
+              "err",
+            );
+          }
+        }
+        return { injected: rules.length, loaded, families };
+      }
+
+      // ---------------------------------------------------------------------
+      // Skottie 용 named-blob 맵
+      // ---------------------------------------------------------------------
+
+      /**
+       * MakeManagedAnimation 은 이미지와 폰트를 하나의 named-blob 맵으로 받는다.
+       * 이미지는 키가 lottie 의 `assets[].p` 파일명과 정확히 같아야 매칭된다.
+       * 폰트는 다르다 — CanvasKit 이 모든 blob 을 SkFontMgr 에 넣고 폰트의
+       * *내장* 패밀리 이름(= `fonts.list[].fFamily`)으로 찾으므로 키는 아무거나
+       * 되고, 이름 충돌만 피하면 된다. (src/lib/scene.ts 의 주석과 같은 규칙)
+       */
+      async function loadBlobs(urls) {
+        const blobs = {};
+        await Promise.all(
+          urls.map(async (url) => {
+            try {
+              const res = await fetch(url);
+              if (!res.ok) {
+                log(`에셋 로드 실패 ${url} (HTTP ${res.status})`, "warn");
+                return;
+              }
+              blobs[basename(url)] = await res.arrayBuffer();
+            } catch (err) {
+              log(`에셋 로드 실패 ${url} — ${err}`, "warn");
+            }
+          }),
+        );
+        return blobs;
+      }
+
+      // ---------------------------------------------------------------------
+      // 재생 상태
+      // ---------------------------------------------------------------------
+
+      const state = {
+        doc: null,
+        ip: 0,
+        op: 0,
+        fr: 60,
+        frame: 0,       // 절대 lottie 프레임 (ip … op-1)
+        playing: false,
+        raf: null,
+        startedAt: 0,
+        startedFrame: 0,
+        ck: null,
+        skottie: null,
+        skottieSurface: null,
+        skottieRect: null,
+        clearColor: null,
+        lottie: null,
+      };
+
+      /**
+       * 두 엔진 모두 프레임을 **ip 기준 상대값**으로 받는다.
+       *   Skottie   seekFrame(f)        → duration()*fps() (= op-ip) 범위
+       *   lottie-web goToAndStop(f,true) → firstFrame(=ip) 에 더해서 렌더
+       * UI 는 사람이 읽는 절대 프레임을 보여주므로 여기서 한 번만 변환한다.
+       * ip 가 0 이 아닌 씬에서 이 변환을 빠뜨리면 두 패널이 통째로 어긋난다.
+       */
+      function toRelative(absFrame) {
+        return absFrame - state.ip;
+      }
+
+      function renderSkottie(relFrame) {
+        if (!state.skottie || !state.skottieSurface) return;
+        state.skottie.seekFrame(relFrame);
+        const canvas = state.skottieSurface.getCanvas();
+        canvas.clear(state.clearColor);
+        state.skottie.render(canvas, state.skottieRect);
+        state.skottieSurface.flush();
+      }
+
+      function renderLottieWeb(relFrame) {
+        if (!state.lottie) return;
+        // 두 번째 인자는 반드시 true. false 면 값이 프레임이 아니라 시간으로
+        // 해석돼서 두 패널이 미세하게 어긋난다.
+        state.lottie.goToAndStop(relFrame, true);
+      }
+
+      function setFrame(absFrame, opts) {
+        const options = opts || {};
+        const last = Math.max(state.ip, state.op - 1);
+        const clamped = Math.min(last, Math.max(state.ip, Math.round(absFrame)));
+        state.frame = clamped;
+
+        const rel = toRelative(clamped);
+        renderSkottie(rel);
+        renderLottieWeb(rel);
+
+        if (!options.silentRange) el.range.value = String(clamped);
+        if (!options.silentNumber) el.number.value = String(clamped);
+      }
+
+      function tick() {
+        const total = state.op - state.ip;
+        if (total <= 0) return;
+        const elapsed = (performance.now() - state.startedAt) / 1000;
+        const advanced = toRelative(state.startedFrame) + elapsed * state.fr;
+        // 정수 프레임만 흘린다. 두 엔진에 완전히 같은 값을 주어야 차이가
+        // 렌더러 탓인지 보간 탓인지 헷갈리지 않는다.
+        const rel = Math.floor(((advanced % total) + total) % total);
+        setFrame(state.ip + rel);
+        state.raf = requestAnimationFrame(tick);
+      }
+
+      function setPlaying(next) {
+        state.playing = next;
+        el.play.textContent = next ? "정지" : "재생";
+        if (next) {
+          state.startedAt = performance.now();
+          state.startedFrame = state.frame >= state.op - 1 ? state.ip : state.frame;
+          state.raf = requestAnimationFrame(tick);
+        } else if (state.raf) {
+          cancelAnimationFrame(state.raf);
+          state.raf = null;
+        }
+      }
+
+      // ---------------------------------------------------------------------
+      // 부팅
+      // ---------------------------------------------------------------------
+
+      async function boot() {
+        log(`씬: ${SRC}`);
+
+        if (typeof window.CanvasKitInit !== "function") {
+          fatal("CanvasKit CDN 을 불러오지 못했다 (canvaskit-wasm@0.41.1). 네트워크나 CSP 를 확인하라.");
+          return;
+        }
+        if (typeof window.lottie === "undefined") {
+          fatal("lottie-web CDN 을 불러오지 못했다 (lottie-web@5.13.0). 네트워크나 CSP 를 확인하라.");
+          return;
+        }
+
+        // --- 씬 JSON -------------------------------------------------------
+        let raw;
+        try {
+          const res = await fetch(SRC, { cache: "no-store" });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          raw = await res.text();
+        } catch (err) {
+          fatal(`씬을 불러오지 못했다: ${SRC} — ${err}`);
+          return;
+        }
+
+        let doc;
+        try {
+          doc = JSON.parse(raw);
+        } catch (err) {
+          fatal(`씬 JSON 파싱 실패: ${err}`);
+          return;
+        }
+
+        state.doc = doc;
+        state.ip = Number(doc.ip) || 0;
+        state.op = Number(doc.op) || 0;
+        state.fr = Number(doc.fr) || 60;
+
+        const width = Number(doc.w) || 512;
+        const height = Number(doc.h) || 512;
+        const lastFrame = Math.max(state.ip, state.op - 1);
+
+        el.meta.textContent =
+          `${SRC} · ${width}×${height} · ${state.fr}fps · ${state.ip}–${state.op} ` +
+          `(${state.op - state.ip}프레임)`;
+        document.title = `렌더러 비교 — ${SCENE_DIR.split("/").pop()}`;
+
+        // 두 무대를 같은 종횡비로 맞춘다. 크기가 다르면 눈으로 비교가 안 된다.
+        el.skottieStage.style.aspectRatio = `${width} / ${height}`;
+        el.lottieStage.style.aspectRatio = `${width} / ${height}`;
+
+        el.range.min = String(state.ip);
+        el.range.max = String(lastFrame);
+        el.range.value = String(state.ip);
+        el.number.min = String(state.ip);
+        el.number.max = String(lastFrame);
+        el.number.value = String(state.ip);
+
+        // --- 에셋 ----------------------------------------------------------
+        const assets = await listSceneAssets(doc);
+
+        // --- Skottie -------------------------------------------------------
+        try {
+          const CanvasKit = await window.CanvasKitInit({ locateFile: () => "/canvaskit.wasm" });
+          state.ck = CanvasKit;
+          state.clearColor = CanvasKit.TRANSPARENT;
+
+          const blobs = await loadBlobs([...assets.images, ...assets.fonts]);
+          log(`Skottie named-blob 맵 키: [${Object.keys(blobs).join(", ") || "(없음)"}]`);
+
+          el.skottieCanvas.width = width;
+          el.skottieCanvas.height = height;
+
+          const surface = CanvasKit.MakeCanvasSurface(el.skottieCanvas);
+          if (!surface) throw new Error("MakeCanvasSurface 가 null 을 반환했다");
+
+          const anim = CanvasKit.MakeManagedAnimation(raw, blobs);
+          if (!anim) throw new Error("MakeManagedAnimation 이 null 을 반환했다");
+
+          state.skottie = anim;
+          state.skottieSurface = surface;
+          state.skottieRect = CanvasKit.LTRBRect(0, 0, width, height);
+          el.skottieStatus.innerHTML =
+            `<span class="ok">준비됨</span> · duration ${anim.duration().toFixed(3)}s · ` +
+            `fps ${anim.fps()} · 에셋 ${Object.keys(blobs).length}개`;
+          log("Skottie 준비 완료", "ok");
+        } catch (err) {
+          el.skottieStatus.innerHTML = `<span class="err">실패: ${err}</span>`;
+          log(`Skottie 초기화 실패 — ${err}`, "err");
+        }
+
+        // --- lottie-web ----------------------------------------------------
+        try {
+          const fontReport = await injectFonts(doc, assets.fonts);
+
+          // lottie-web 은 animationData 를 직접 변형한다. Skottie 에 넘긴 원본
+          // 문자열과 섞이지 않도록 따로 파싱한 사본을 준다.
+          const animationData = JSON.parse(raw);
+
+          const anim = window.lottie.loadAnimation({
+            container: el.lottieStage,
+            renderer: "svg",
+            loop: false,
+            autoplay: false,
+            animationData,
+            // 이미지는 씬 폴더 옆에 있다. 이걸 안 주면 assets[].p 가 이 페이지
+            // 기준(/)으로 풀려서 이미지가 통째로 빠진다.
+            assetsPath: `${SCENE_DIR}/`,
+            rendererSettings: {
+              preserveAspectRatio: "xMidYMid meet",
+              progressiveLoad: false,
+              hideOnTransparent: true,
+            },
+          });
+
+          anim.addEventListener("data_failed", () => {
+            el.lottieStatus.innerHTML = '<span class="err">lottie-web 이 씬 데이터를 거부했다</span>';
+            log("lottie-web data_failed", "err");
+          });
+
+          state.lottie = anim;
+
+          const textLayers = (doc.layers || []).filter((l) => l && l.ty === 5).length;
+          const parts = [`<span class="ok">준비됨</span> · totalFrames ${anim.totalFrames}`];
+          if (fontReport.injected > 0) {
+            const cls = fontReport.loaded === fontReport.injected ? "ok" : "err";
+            parts.push(`<span class="${cls}">폰트 ${fontReport.loaded}/${fontReport.injected} 로드</span>`);
+          } else if (textLayers > 0) {
+            parts.push('<span class="warn">텍스트 레이어가 있는데 fonts.list 가 비어 있다</span>');
+          }
+          el.lottieStatus.innerHTML = parts.join(" · ");
+          log(`lottie-web 준비 완료 (totalFrames ${anim.totalFrames})`, "ok");
+
+          if (textLayers > 0) {
+            log(
+              `네이티브 텍스트 레이어 ${textLayers}개. 두 패널의 자간·베이스라인이 다르게 보이면 정상이다 — ` +
+                "폰트가 양쪽에 제대로 들어갔다는 뜻이다. 똑같아 보이면 오히려 폰트 주입이 실패했는지 의심하라.",
+              "warn",
+            );
+          }
+        } catch (err) {
+          el.lottieStatus.innerHTML = `<span class="err">실패: ${err}</span>`;
+          log(`lottie-web 초기화 실패 — ${err}`, "err");
+        }
+
+        // --- 조작 활성화 ---------------------------------------------------
+        if (!state.skottie && !state.lottie) {
+          fatal("두 렌더러 모두 초기화하지 못했다. 위 진단 로그를 보라.");
+          return;
+        }
+
+        el.range.disabled = false;
+        el.number.disabled = false;
+        el.play.disabled = false;
+
+        el.range.addEventListener("input", () => {
+          if (state.playing) setPlaying(false);
+          setFrame(Number(el.range.value), { silentRange: true });
+        });
+        el.number.addEventListener("input", () => {
+          if (el.number.value === "") return;
+          if (state.playing) setPlaying(false);
+          setFrame(Number(el.number.value), { silentNumber: true });
+        });
+        el.play.addEventListener("click", () => setPlaying(!state.playing));
+        document.addEventListener("keydown", (event) => {
+          if (event.target instanceof HTMLInputElement) return;
+          if (event.code === "Space") { event.preventDefault(); setPlaying(!state.playing); }
+          else if (event.key === "ArrowLeft") { setPlaying(false); setFrame(state.frame - 1); }
+          else if (event.key === "ArrowRight") { setPlaying(false); setFrame(state.frame + 1); }
+        });
+
+        setFrame(state.ip);
+        log(`초기 프레임 ${state.ip} 로 양쪽 고정. 스페이스=재생/정지, ←/→=한 프레임 이동.`);
+      }
+
+      boot().catch((err) => fatal(`예상치 못한 오류: ${err && err.stack ? err.stack : err}`));
+    </script>
+  </body>
+</html>
