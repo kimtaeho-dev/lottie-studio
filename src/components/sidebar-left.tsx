@@ -77,8 +77,7 @@ export function SidebarLeft() {
     >
       <div class="flex items-center justify-between h-12 px-3">
         <div class="flex items-center justify-center gap-1">
-          <Icon name="diffusion-logo" class="size-6" />
-          <span class="text-xxs font-strong">Diffusion Studio</span>
+          <span class="text-xxs font-strong">lottie-studio</span>
         </div>
         <Button size="icon" variant="ghost" onClick={toggleControls}>
           <Icon name="sidebar" />
