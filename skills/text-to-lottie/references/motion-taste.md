@@ -56,7 +56,7 @@ by what it is doing this beat. Bezier is `x1,y1,x2,y2`.
 | `settle-soft` | settling, count-up landing, logo lockup | `.00,.65,.51,.99` | deep ease-out, no bounce |
 | `kinetic-ui` | expressive small state move (toggle, accent) | `.85,.46,.14,.53` | lively — not every UI move |
 | `expressive-pop` | active kinetic word, brand flourish | `.94,.75,.34,.94` | fast-out + soft settle (overshoot opt-in) |
-| `travel-balanced` | object travel, camera, state-to-state | `1.00,.49,.00,.55` | S-curve ease-in-out |
+| `travel-balanced` | object travel, camera, state-to-state | `.65,0,.35,1` | S-curve ease-in-out |
 | `exit-accelerate` | exiting, hard-cut companion | `1.00,.02,.54,.42` | slow start, fast end |
 | `travel-cut` | only interrupted / masked / cut-before-settle | `.15,.85,.95,.05` | fast-slow-fast, never settles |
 
