@@ -46,7 +46,7 @@
 프로젝트 폴더를 컴퓨터로 받는 방법은 이렇습니다.
 
 1. [Releases 페이지](https://github.com/kimtaeho-dev/lottie-studio/releases/latest)로 들어갑니다.
-2. 가장 최신 버전의 **Source code (zip)**를 다운로드합니다.
+2. 가장 최신 버전의 **Source code (zip)** 파일을 다운로드합니다.
 3. 다운로드된 zip 파일의 압축을 풉니다. 이 폴더가 앞으로 작업할 프로젝트
    폴더입니다.
 
@@ -305,7 +305,7 @@ public/projects/
 ## 출처와 라이선스
 
 이 프로젝트는 [`diffusionstudio/lottie`](https://github.com/diffusionstudio/lottie)
-(MIT)를 기반으로 합니다. **GitHub 포크가 아니라 코드 반입(vendoring)**이라
+(MIT)를 기반으로 합니다. **GitHub 포크가 아니라 코드 반입(vendoring)** 방식이라
 upstream 변경은 자동으로 따라오지 않습니다. 반입 시점의 커밋과 변경을
 가져오는 절차는 [`docs/UPSTREAM.md`](docs/UPSTREAM.md)를 봐주세요.
 
