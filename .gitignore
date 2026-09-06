@@ -13,6 +13,13 @@ app.config.timestamp_*.js
 # dependencies
 /node_modules
 
+# this repo is npm-only (see package.json "packageManager") — ignore other
+# package managers' lockfiles so one doesn't accidentally get committed
+bun.lock
+bun.lockb
+yarn.lock
+pnpm-lock.yaml
+
 # IDEs and editors
 /.idea
 .project
