@@ -103,6 +103,7 @@ http://localhost:3030/compare.html?src=/projects/main-project/scene-1/lottie.jso
 | `npm install` | 의존성 설치 + `public/canvaskit.wasm` 생성 |
 | `npm run dev` | 플레이어 dev 서버 (포트 3030) |
 | `npm run check:lottie` | 모든 씬에 lottie-web 호환성 스캐너 실행 |
+| `npm run check:motion` | 정지 프레임으로는 안 보이는 이징 스냅(재생 중 순간 튐) 검사, 브라우저 불필요 |
 | `npm run check:text-slots` | 텍스트 슬롯 유니코드 테스트 |
 | `npm run build` | 프로덕션 빌드 |
 | `npm run preview` | 빌드 결과물 미리보기 |
@@ -130,10 +131,11 @@ public/projects/
 
 1. JSON 이 파싱되는가
 2. `npm run check:lottie` 가 BLOCK 0개로 통과하는가
-3. `/compare.html` 에서 프레임 `0`, 중간, `op - 1` 을 **양쪽 패널** 모두 봤는가
-4. 두 패널의 차이 원인을 제거했는가
-5. 배경 정책이 용도에 맞는가
-6. 씬 용량이 150KB 이하인가 (이미지는 base64 인라인 대신 외부 파일)
+3. `npm run check:motion` 이 통과하는가 (정지 프레임엔 안 보이는 이징 스냅 검사 — 브라우저 불필요)
+4. `/compare.html` 에서 프레임 `0`, 중간, `op - 1` 을 **양쪽 패널** 모두 봤는가 (브라우저를 쓸 수 있을 때)
+5. 두 패널의 차이 원인을 제거했는가
+6. 배경 정책이 용도에 맞는가
+7. 씬 용량이 150KB 이하인가 (이미지는 base64 인라인 대신 외부 파일)
 
 ---
 

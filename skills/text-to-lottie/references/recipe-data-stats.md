@@ -59,7 +59,12 @@ textures, and simple chart animations.
 - Direct-label values on points, bars, cards, rows, or panels. Avoid axis
   decoding when the scene is short.
 - Use trim paths for lines, hairlines, axes, callout arrows, rules, and flows.
-- Use masks or clip reveals for rounded bars/cards so radii do not distort.
+- For rounded bars/cards, do not scale a rounded-rect to reveal it (the radius
+  stretches). Prefer resizing the shape's own width/height keyframes (or a
+  clip built from `rc`/`el` primitives) so the radius stays fixed. Avoid
+  hand-authored mask paths for this — see
+  `references/renderer-constraints.md` for why they render inconsistently
+  between Skottie and lottie-web.
 - Use slots for insight/headline text, key values, accent color, background
   color, and optional chart colors when useful.
 - Placeholder third-party logos, compliance marks, or headshots unless the user

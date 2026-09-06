@@ -156,8 +156,20 @@ renderer that ships.
    ```
 
    WARN findings do not fail the run. Each one marks a construct the two
-   renderers may draw differently — carry it into step 4 and look at it.
-4. Open the comparison page and pin frames `0`, the midpoint, and `op - 1`:
+   renderers may draw differently — carry it into step 5 and look at it.
+4. Run the motion smoothness check to catch easing-curve defects that no
+   still-frame check can see (e.g. a keyframe's time-axis derivative
+   stalling mid-segment while the value keeps changing, which snaps on
+   playback):
+
+   ```bash
+   node scripts/check-motion-smoothness.mjs public/projects/<project>/<scene-N>/lottie.json
+   ```
+
+   This is headless — no browser needed — so it still runs where browser
+   automation (e.g. the Claude in Chrome extension) is unavailable.
+5. Open the comparison page and pin frames `0`, the midpoint, and `op - 1`
+   (when a browser is available — see the note below if it is not):
 
    ```
    /compare.html?src=/projects/<project>/<scene-N>/lottie.json
@@ -167,11 +179,17 @@ renderer that ships.
    on the right. Checking only one panel is not verification. At the same time
    check for blank canvas, missing assets, unstyled shapes, wrong layer order,
    bad easing, awkward timing, cropped content, text overflow, and visible SVG
-   artifacts.
-5. Remove the cause of any difference between the panels. If the difference
+   artifacts. This is a still-frame check, not a playback check — it does not
+   replace step 4.
+
+   > If no browser automation is available, skip this step and rely on steps
+   > 1–4 (all headless). They catch most authoring mistakes, but purely visual
+   > judgment calls (color, layout, typography) still need a human to open the
+   > player.
+6. Remove the cause of any difference between the panels. If the difference
    traces to a WARN finding, replace that construct with the alternative given
    in `references/renderer-constraints.md`.
-6. Confirm the background policy matches the use case. Use the comparison
+7. Confirm the background policy matches the use case. Use the comparison
    page's checkerboard to confirm transparency.
 
 ## Maintenance Evals
