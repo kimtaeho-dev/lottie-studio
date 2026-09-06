@@ -1,6 +1,6 @@
 # 예시 갤러리
 
-`npm run dev` 로 플레이어를 열면 사이드바에 아래 4개 프로젝트가 보인다. 각각을
+`npm run dev` 로 플레이어를 열면 사이드바에 아래 5개 프로젝트가 보인다. 각각을
 **어떤 프롬프트로 에이전트에게 시켰을 때** 나온 결과인지 적어뒀다. 그대로 복사해
 써도 되고, 자기 브랜드 컬러·사이즈·길이로 숫자만 바꿔서 시작해도 된다.
 
@@ -62,6 +62,29 @@
   + 팬 카메라 무빙 구현
 - 슬롯: `bgColor` (배경), `accentColor` (대각선 바 색)
 - 확인: `/camera-scene-motion/scene-1` · `/compare.html?src=/projects/camera-scene-motion/scene-1/lottie.json`
+
+## 트레이딩 리그 대결 바 — `tug-of-war-bars`
+
+> 가상화폐 거래소 투자 대회(트레이딩 리그) 관련 위젯이야. 두 팀이 좌우로
+> 밀어붙이는 터그오브워 바를 만들어줘. 1600×900, 투명 배경, 그린/레드 두 팀
+> 컬러. 텍스트는 넣지 말고 순수 도형만. 계속 반복되는 루프로, 중앙에서
+> 시작해서 한쪽이 밀고 들어왔다가 버티고, 다시 중앙을 가로질러 반대쪽이
+> 밀고 들어왔다가 버티고, 다시 중앙으로 돌아와 루프가 이어지게 해줘.
+
+- 결과: `public/projects/tug-of-war-bars/scene-1/lottie.json` (24.1KB)
+- 기법: 캡슐 바를 **마스크가 아니라** `rc`(가변 폭 사각형) + `el`(고정 반원
+  캡) 조합으로 구현 — 각 팀의 반원 캡은 고정 위치, 사각형만 폭·위치를
+  키프레임으로 움직여 항상 이음매 없이 맞물린다. 8개 키프레임으로
+  중앙→A우세(오버슛)→버팀→중앙 통과→B우세(오버슛)→버팀→중앙(루프 시작점과
+  동일)까지 구성
+- 슬롯: `teamAColor`, `teamBColor`
+- 확인: `/tug-of-war-bars/scene-1` · `/compare.html?src=/projects/tug-of-war-bars/scene-1/lottie.json`
+- 참고: 이 씬을 만들면서 두 가지 실제 lottie-web 버그를 발견해 스킬 문서와
+  스캐너에 반영했다 — 자세한 내용은
+  [`renderer-constraints.md`](../skills/text-to-lottie/references/renderer-constraints.md)의
+  "키프레임 이징(o/i)이 한쪽에만 있음"과 "마스크에 손으로 만든 베지어 패스"
+  항목을 본다. 좌우로 나뉘는 바/게이지류를 만들 때는 마스크보다 이 씬의
+  `rc`+`el` 패턴을 그대로 재사용하는 걸 권장한다.
 
 ---
 

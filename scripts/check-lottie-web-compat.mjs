@@ -131,6 +131,26 @@ const RULES = {
     level: WARN,
     text: '한 it 그룹 안에 ty:"tm"(트림 패스)이 2개 이상이다. 적용 순서 해석이 다르다.',
   },
+  "LW-KEYFRAME-EASING-SPLIT": {
+    level: BLOCK,
+    text:
+      "키프레임 이징(o/i)이 구간의 시작 키프레임 한쪽에만 있고 짝이 없다. o(out)와 i(in)는 항상 그 구간을 시작하는 키프레임에 함께 있어야 한다 " +
+      "(다음 키프레임에 i를 나눠 넣는 건 틀린 형식이다). lottie-web은 이 값을 못 읽으면 해당 레이어를 통째로 렌더링하지 않는데 Skottie는 관대하게 넘어가서, " +
+      "미리보기는 멀쩡한데 프로덕션에서만 레이어가 사라진다.",
+  },
+  "LW-MASK-NO-FEATHER": {
+    level: BLOCK,
+    text:
+      "masksProperties 항목에 x(페더) 필드가 없다. lottie-web은 마스크 생성 중 x.k 를 바로 읽다가 예외를 던지고 그 레이어를 통째로 그리지 않는다 " +
+      '(Skottie는 문제없이 렌더한다). 반드시 "x": { "a": 0, "k": 0 } 를 추가해라.',
+  },
+  "LW-MASK-CUSTOM-PATH": {
+    level: WARN,
+    text:
+      "masksProperties 에 손으로 만든 베지어 패스가 있다. lottie-web의 마스크 렌더러는 정점의 i/o 베지어 핸들을 정점 기준 상대좌표가 아니라 " +
+      "절대좌표로 그대로 쓰는 반면 Skottie는 표준대로 상대좌표로 해석해서, 같은 값이 한쪽에서는 맞고 한쪽에서는 뒤틀린다. 직선 위주의 클리핑이면 " +
+      "마스크 대신 rc(사각형)+el(원)을 위치·크기 키프레임으로 조합하는 편이 두 렌더러 모두에서 안전하다.",
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -220,6 +240,31 @@ function checkObject(obj, path, isLayer, add) {
   // (키프레임 이징, 분리된 위치 x축)는 정상이므로 문자열만 본다.
   if (typeof obj.x === "string") {
     add("LW-EXPRESSION", `${path}.x`, truncate(obj.x));
+  }
+
+  // 키프레임 이징(o/i)은 그 구간을 "시작하는" 키프레임 한쪽에 함께 있어야 한다.
+  // 한쪽만 있으면(다음 키프레임에 잘못 나눠 넣은 경우) lottie-web은 해당
+  // 레이어를 통째로 그리지 않는다. `t`(시간)와 `s`(구간 시작값)를 함께 가진
+  // 객체만 키프레임으로 본다 — 일반 애니메이션 값, 마스크 pt 둘 다 같은 모양.
+  if (typeof obj.t === "number" && Array.isArray(obj.s)) {
+    const hasO = obj.o !== undefined;
+    const hasI = obj.i !== undefined;
+    if (hasO !== hasI) {
+      add("LW-KEYFRAME-EASING-SPLIT", path, `t:${obj.t}, ${hasO ? "o만 있음" : "i만 있음"}`);
+    }
+  }
+
+  // 마스크: x(페더) 누락은 lottie-web에서 예외를 던져 레이어가 통째로 안 그려진다.
+  // 손으로 만든 패스(v/i/o 직접 작성)는 두 렌더러의 좌표 해석이 달라 WARN.
+  if (Array.isArray(obj.masksProperties)) {
+    obj.masksProperties.forEach((mask, idx) => {
+      if (!isPlainObject(mask)) return;
+      const maskPath = `${path}.masksProperties[${idx}]`;
+      if (!isPlainObject(mask.x)) {
+        add("LW-MASK-NO-FEATHER", maskPath);
+      }
+      add("LW-MASK-CUSTOM-PATH", maskPath);
+    });
   }
 }
 

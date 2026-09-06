@@ -1,0 +1,6 @@
+{
+  "controls": [
+    { "sid": "teamAColor", "label": "Team A Color" },
+    { "sid": "teamBColor", "label": "Team B Color" }
+  ]
+}
