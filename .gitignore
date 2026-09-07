@@ -38,3 +38,12 @@ canvaskit.wasm
 
 # Skills
 .claude
+
+# Mailbox (in-app chat worker queue)
+.mailbox
+
+# Working scenes — generated per-machine from examples/ (see
+# scripts/seed-example-projects.mjs) and whatever the agent/designer creates
+# locally. Not shipped in git; docs/EXAMPLES.md's example gallery lives under
+# examples/ instead.
+/public/projects/

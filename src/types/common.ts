@@ -40,3 +40,11 @@ export type AnimationSlot =
   | { id: string; type: "color"; value: [number, number, number, number] }
   | { id: string; type: "vec2"; value: [number, number] }
   | { id: string; type: "text"; value: string };
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  status: "pending" | "processing" | "done" | "error" | "cancelled";
+  createdAt: string;
+}

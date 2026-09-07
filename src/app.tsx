@@ -3,6 +3,7 @@ import { SidebarLeft } from '@/components/sidebar-left';
 import { PlaybackControls } from '@/components/playback-controls';
 import { ScenesContainer } from '@/components/scenes-container';
 import { SidebarRight } from '@/components/sidebar-right';
+import { ChatPanel } from '@/components/chat-panel';
 import { useUI } from '@/context/ui';
 
 export function App() {
@@ -17,7 +18,12 @@ export function App() {
           <ScenesContainer />
         </Show>
       </div>
-      <SidebarRight />
+      <div class="absolute right-4 top-4 bottom-4 flex flex-col gap-4">
+        <SidebarRight />
+        <Show when={import.meta.env.DEV}>
+          <ChatPanel />
+        </Show>
+      </div>
     </>
   );
 };

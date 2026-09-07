@@ -46,7 +46,7 @@ export function SidebarRight() {
 
   return (
     <div
-      class="absolute right-4 top-4 flex flex-col max-h-full rounded-2xl gap-0 bg-background border border-border"
+      class="flex flex-col shrink-0 max-h-full rounded-2xl gap-0 bg-background border border-border"
       classList={{ 
         "w-[188px]": !controlsExpanded(),
         "w-[236px]": controlsExpanded(),

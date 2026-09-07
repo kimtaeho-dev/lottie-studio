@@ -3,17 +3,20 @@ import { createMemo, Show, type JSX } from "solid-js";
 import { CenteredContainer } from "@/components/ui/container";
 import { App } from "./app";
 import { CanvasProvider } from "./context/canvas";
+import { ChatProvider } from "./context/chat";
 import { ScenesProvider, useScenes } from "./context/scenes";
 import { UIProvider } from "./context/ui";
 
 function Providers(props: { children?: JSX.Element }) {
   return (
     <ScenesProvider>
-      <UIProvider>
-        <CanvasProvider>
-          {props.children}
-        </CanvasProvider>
-      </UIProvider>
+      <ChatProvider>
+        <UIProvider>
+          <CanvasProvider>
+            {props.children}
+          </CanvasProvider>
+        </UIProvider>
+      </ChatProvider>
     </ScenesProvider>
   );
 }
