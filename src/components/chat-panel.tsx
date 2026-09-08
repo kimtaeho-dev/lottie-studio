@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, Show } from "solid-js";
-import { RotateCcw, Send, X } from "lucide-solid";
+import { Paperclip, RotateCcw, Send, X } from "lucide-solid";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -12,15 +12,28 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useChat } from "@/context/chat";
+import { useChat, type PendingAttachment } from "@/context/chat";
 
 const MAX_TEXTAREA_HEIGHT = 128; // px — grows up to this, then scrolls internally
+
+// Kept in sync with MAX_ATTACHMENT_BYTES in vite-plugins/mailbox.ts — checked
+// client-side too so a huge file fails fast instead of round-tripping.
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
 export function ChatPanel() {
   const { messages, sending, send, cancel, reset } = useChat();
   const [text, setText] = createSignal("");
+  const [attachment, setAttachment] = createSignal<PendingAttachment | null>(null);
+  const [attachError, setAttachError] = createSignal<string | null>(null);
+  const [dragActive, setDragActive] = createSignal(false);
   let listRef: HTMLDivElement | undefined;
   let textareaRef: HTMLTextAreaElement | undefined;
+  let fileInputRef: HTMLInputElement | undefined;
+  // Counts nested dragenter/dragleave pairs so hovering over a child element
+  // (the message list, the textarea, ...) doesn't prematurely clear the
+  // "dragging a file over the panel" state — only reaching 0 means the
+  // pointer actually left the panel.
+  let dragDepth = 0;
 
   const autoGrow = () => {
     if (!textareaRef) return;
@@ -28,12 +41,66 @@ export function ChatPanel() {
     textareaRef.style.height = `${Math.min(textareaRef.scrollHeight, MAX_TEXTAREA_HEIGHT)}px`;
   };
 
+  const loadAttachment = async (file: File) => {
+    setAttachError(null);
+    if (!/\.svg$/i.test(file.name)) {
+      setAttachError("SVG 파일만 첨부할 수 있어요.");
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setAttachError("파일이 너무 커요. 5MB 이하 SVG만 첨부할 수 있어요.");
+      return;
+    }
+    const content = await file.text();
+    setAttachment({ name: file.name, content });
+  };
+
+  const handleFileInput = (e: Event) => {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = ""; // reset so picking the same file again still fires a change
+    if (file) void loadAttachment(file);
+  };
+
+  const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
+
+  const handleDragEnter = (e: DragEvent) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth++;
+    setDragActive(true);
+  };
+
+  const handleDragOver = (e: DragEvent) => {
+    // Required for the element to be a valid drop target at all.
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+  };
+
+  const handleDragLeave = (e: DragEvent) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) setDragActive(false);
+  };
+
+  const handleDrop = (e: DragEvent) => {
+    e.preventDefault();
+    dragDepth = 0;
+    setDragActive(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) void loadAttachment(file);
+  };
+
   const handleSend = async () => {
     const value = text().trim();
-    if (!value || sending()) return;
+    const pending = attachment();
+    if ((!value && !pending) || sending()) return;
     setText("");
+    setAttachment(null);
+    setAttachError(null);
     autoGrow();
-    await send(value);
+    await send(value, pending ?? undefined);
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -55,7 +122,19 @@ export function ChatPanel() {
   });
 
   return (
-    <div class="flex flex-col flex-1 min-h-0 w-[380px] rounded-2xl gap-0 bg-background border border-border">
+    <div
+      class="relative flex flex-col flex-1 min-h-0 w-[380px] rounded-2xl gap-0 bg-background border border-border"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      <Show when={dragActive()}>
+        <div class="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed border-foreground bg-background/90 pointer-events-none">
+          <span class="text-xxs font-strong text-foreground">여기에 SVG 파일을 놓아주세요</span>
+        </div>
+      </Show>
+
       <div class="flex items-center justify-between h-12 px-3 pl-4 border-b border-border shrink-0">
         <span class="text-xxs font-strong text-foreground">에이전트</span>
         <Show when={messages().length > 0}>
@@ -88,6 +167,7 @@ export function ChatPanel() {
               <span class="text-xxs text-muted-foreground">
                 예: "배경을 파란색으로 바꿔줘", "폭죽이 더 통통 튀게 해줘"
               </span>
+              <span class="text-xxs text-muted-foreground">SVG 파일을 끌어다 놓거나 첨부해서 그걸 기반으로도 만들 수 있어요.</span>
             </div>
           }
         >
@@ -102,6 +182,19 @@ export function ChatPanel() {
                     "bg-destructive/10 text-destructive": message.status === "error",
                   }}
                 >
+                  <Show when={message.attachment}>
+                    {(att) => (
+                      <a
+                        href={att().url}
+                        target="_blank"
+                        rel="noreferrer"
+                        class="mb-1 flex items-center gap-1 underline underline-offset-2 opacity-80 hover:opacity-100"
+                      >
+                        <Paperclip class="size-3 shrink-0" />
+                        <span class="truncate">{att().name}</span>
+                      </a>
+                    )}
+                  </Show>
                   <Show when={message.status === "pending" || message.status === "processing"}>
                     <div class="flex items-center gap-1.5 text-muted-foreground">
                       <span>{message.status === "pending" ? "대기 중…" : "생각 중…"}</span>
@@ -126,7 +219,35 @@ export function ChatPanel() {
         </Show>
       </div>
 
+      <Show when={attachment() || attachError()}>
+        <div class="px-3 pt-2 shrink-0">
+          <Show when={attachment()}>
+            {(att) => (
+              <div class="flex w-fit max-w-full items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xxs text-foreground">
+                <Paperclip class="size-3.5 shrink-0" />
+                <span class="truncate">{att().name}</span>
+                <button
+                  type="button"
+                  onClick={() => setAttachment(null)}
+                  class="inline-flex items-center justify-center rounded-sm hover:text-destructive focus-ring"
+                  aria-label="첨부 제거"
+                >
+                  <X class="size-3.5" />
+                </button>
+              </div>
+            )}
+          </Show>
+          <Show when={attachError()}>
+            <span class="text-xxs text-destructive">{attachError()}</span>
+          </Show>
+        </div>
+      </Show>
+
       <div class="flex items-end gap-1.5 px-3 py-2 border-t border-border shrink-0">
+        <input ref={fileInputRef} type="file" accept=".svg,image/svg+xml" class="hidden" onChange={handleFileInput} />
+        <Button size="icon" variant="ghost" onClick={() => fileInputRef?.click()} aria-label="SVG 파일 첨부">
+          <Paperclip />
+        </Button>
         <textarea
           ref={textareaRef}
           rows={1}

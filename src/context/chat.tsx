@@ -2,10 +2,16 @@ import { createContext, createResource, createSignal, useContext, type JSX } fro
 import { useParams } from "@solidjs/router";
 import type { ChatMessage } from "@/types";
 
+/** A file staged for the next outgoing message, read as text client-side (SVG only). */
+export interface PendingAttachment {
+  name: string;
+  content: string;
+}
+
 const ChatContext = createContext<{
   messages: () => ChatMessage[];
   sending: () => boolean;
-  send: (text: string) => Promise<void>;
+  send: (text: string, attachment?: PendingAttachment) => Promise<void>;
   cancel: (messageId: string) => Promise<void>;
   reset: () => Promise<void>;
 }>();
@@ -27,7 +33,7 @@ export function ChatProvider(props: { children: JSX.Element }) {
     if (payload.project === params.project) mutate(payload.messages);
   });
 
-  const send = async (text: string) => {
+  const send = async (text: string, attachment?: PendingAttachment) => {
     const project = params.project;
     if (!project) return;
     setSending(true);
@@ -35,7 +41,7 @@ export function ChatProvider(props: { children: JSX.Element }) {
       await fetch("/__chat/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project, text }),
+        body: JSON.stringify({ project, text, attachment }),
       });
     } finally {
       setSending(false);

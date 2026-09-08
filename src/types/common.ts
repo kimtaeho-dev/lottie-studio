@@ -41,10 +41,19 @@ export type AnimationSlot =
   | { id: string; type: "vec2"; value: [number, number] }
   | { id: string; type: "text"; value: string };
 
+/** A file the user attached to a chat message (e.g. a dropped SVG). */
+export interface ChatAttachment {
+  /** Original filename as picked/dropped by the user. */
+  name: string;
+  /** Public URL of the saved copy, e.g. "/projects/<project>/uploads/<file>.svg". */
+  url: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   text: string;
   status: "pending" | "processing" | "done" | "error" | "cancelled";
   createdAt: string;
+  attachment?: ChatAttachment;
 }

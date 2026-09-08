@@ -13,6 +13,10 @@ const WORKER_TIMEOUT_MS = 15 * 60 * 1000;
 
 const FALLBACK_ERROR_TEXT = "요청을 처리하는 중에 문제가 생겼어요. 잠시 후 다시 말씀해 주세요.";
 
+// Attached SVGs are text and small by nature; this is generous headroom
+// against an accidentally-huge or non-SVG file, not a real-world SVG size.
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
 interface Thread {
   sessionId: string | null;
   messages: ChatMessage[];
@@ -22,6 +26,31 @@ interface QueueItem {
   project: string;
   placeholderId: string;
   userText: string;
+  /** Path to the saved attachment, relative to the project root (for the prompt). */
+  attachmentPath?: string;
+  attachmentName?: string;
+}
+
+/** "../foo/bar.svg" -> "bar.svg"; strips anything unsafe for a filesystem name. */
+function sanitizeFilename(name: string): string {
+  const base = path.basename(name).replace(/[^a-zA-Z0-9._-]+/g, "-");
+  return base || "upload.svg";
+}
+
+/**
+ * Lightweight, regex-based SVG sanitizer. This file lands under `public/` and
+ * is served as a static asset (and read back by the agent), so strip the
+ * obvious script-injection vectors before it ever touches disk: `<script>`
+ * elements, `on*` event handler attributes, and `javascript:` URIs. Not a
+ * substitute for a real sanitizer, but this is a local single-user dev tool,
+ * not content served to third parties.
+ */
+function sanitizeSvg(content: string): string {
+  return content
+    .replace(/<script[\s\S]*?<\/script\s*>/gi, "")
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, "")
+    .replace(/(href|xlink:href)\s*=\s*(["'])\s*javascript:[^"']*\2/gi, "");
 }
 
 interface ClaudeResult {
@@ -56,6 +85,7 @@ function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
 export function mailboxPlugin(): Plugin {
   let projectRoot = "";
   let mailboxDir = "";
+  let projectsDir = "";
 
   const queue: QueueItem[] = [];
   let busy = false;
@@ -126,7 +156,11 @@ export function mailboxPlugin(): Plugin {
     // The project is named explicitly rather than left to /__context alone:
     // if the queue is backed up, the browser's live state may have moved on
     // to a different project by the time this turn actually runs.
-    const prompt = `현재 대상 프로젝트는 "${item.project}"다. ${item.userText}`;
+    let prompt = `현재 대상 프로젝트는 "${item.project}"다. `;
+    if (item.attachmentPath) {
+      prompt += `사용자가 SVG 파일을 첨부했다 (경로: ${item.attachmentPath}, 원본 파일명: ${item.attachmentName}). 이 파일을 읽어서 참고해라. `;
+    }
+    prompt += item.userText || "첨부한 SVG를 기반으로 애니메이션을 만들어줘.";
     const args = ["-p", prompt, "--output-format", "json", "--dangerously-skip-permissions"];
     if (sessionId) args.push("--resume", sessionId);
 
@@ -230,6 +264,7 @@ export function mailboxPlugin(): Plugin {
     configResolved(config) {
       projectRoot = config.root;
       mailboxDir = path.resolve(config.root, ".mailbox");
+      projectsDir = path.resolve(config.root, "public/projects");
     },
 
     configureServer(server) {
@@ -268,7 +303,40 @@ export function mailboxPlugin(): Plugin {
         const project = typeof body.project === "string" ? body.project : "";
         const text = typeof body.text === "string" ? body.text.trim() : "";
         if (!project || !threadPath(project)) return json(res, 400, { error: "missing or invalid project" });
-        if (!text) return json(res, 400, { error: "missing text" });
+
+        const rawAttachment =
+          body.attachment && typeof body.attachment === "object"
+            ? (body.attachment as Record<string, unknown>)
+            : null;
+        const attachmentName = typeof rawAttachment?.name === "string" ? rawAttachment.name : "";
+        const attachmentContent = typeof rawAttachment?.content === "string" ? rawAttachment.content : "";
+        const hasAttachment = Boolean(attachmentName && attachmentContent);
+
+        if (!text && !hasAttachment) return json(res, 400, { error: "missing text" });
+        if (hasAttachment) {
+          if (!/\.svg$/i.test(attachmentName)) {
+            return json(res, 400, { error: "only .svg attachments are supported" });
+          }
+          if (Buffer.byteLength(attachmentContent, "utf8") > MAX_ATTACHMENT_BYTES) {
+            return json(res, 400, { error: "attachment too large" });
+          }
+        }
+
+        let attachment: { name: string; url: string } | undefined;
+        let attachmentPath: string | undefined;
+        if (hasAttachment) {
+          const projectDir = path.resolve(projectsDir, project);
+          if (!projectDir.startsWith(projectsDir + path.sep) || !fs.existsSync(projectDir)) {
+            return json(res, 404, { error: "project not found" });
+          }
+          const uploadsDir = path.join(projectDir, "uploads");
+          fs.mkdirSync(uploadsDir, { recursive: true });
+          const filename = `${Date.now()}-${sanitizeFilename(attachmentName)}`;
+          const filePath = path.join(uploadsDir, filename);
+          fs.writeFileSync(filePath, sanitizeSvg(attachmentContent));
+          attachment = { name: attachmentName, url: `/projects/${project}/uploads/${filename}` };
+          attachmentPath = path.relative(projectRoot, filePath).split(path.sep).join("/");
+        }
 
         const now = new Date().toISOString();
         const userMessage: ChatMessage = {
@@ -277,6 +345,7 @@ export function mailboxPlugin(): Plugin {
           text,
           status: "done",
           createdAt: now,
+          attachment,
         };
         const placeholder: ChatMessage = {
           id: crypto.randomUUID(),
@@ -291,7 +360,13 @@ export function mailboxPlugin(): Plugin {
         writeThread(project, thread);
         broadcast(server, project);
 
-        queue.push({ project, placeholderId: placeholder.id, userText: text });
+        queue.push({
+          project,
+          placeholderId: placeholder.id,
+          userText: text,
+          attachmentPath,
+          attachmentName: attachment?.name,
+        });
         processNext(server);
 
         json(res, 201, { ok: true });
