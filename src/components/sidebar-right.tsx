@@ -28,7 +28,7 @@ function hexToRgb(hex: string): [number, number, number] {
 }
 
 export function SidebarRight() {
-  const { slots, zoom, controls, setScalarSlot, setColorSlot, setVec2Slot, setTextSlot, commitSource, zoomByCentered, resetCamera } = useCanvas();
+  const { slots, zoom, controls, setScalarSlot, setColorSlot, setVec2Slot, setTextSlot, commitSource, zoomByCentered, resetCamera, gifExportProgress, exportGif } = useCanvas();
   const params = useParams();
   const { findProject } = useScenes();
   const { controlsExpanded } = useUI();
@@ -76,9 +76,22 @@ export function SidebarRight() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button onClick={handleExport}>
-          Export
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger as={Button} class="">
+            <Show when={gifExportProgress()} fallback="Export">
+              {(progress) => `GIF ${Math.round((progress().frame / progress().totalFrames) * 100)}%`}
+            </Show>
+            <Icon name="chevron-down" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onSelect={handleExport}>
+              Export project (.zip)
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={exportGif} disabled={!!gifExportProgress()}>
+              Export scene as GIF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <Show when={controlsExpanded() && slots().length > 0}>

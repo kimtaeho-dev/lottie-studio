@@ -6,6 +6,7 @@ import { getCanvasKit } from '@/lib/canvaskit';
 import { loadScene } from '@/lib/scene';
 import { applySlotValues, readTextSlotValue, type LottieDoc } from '@/lib/lottie';
 import { parseLottieFile, createSceneFromDoc } from '@/lib/import';
+import { exportSceneGif, type GifExportProgress } from '@/lib/gif-export';
 
 import type { CanvasKit, Surface, ManagedSkottieAnimation, Font, Paint, Typeface } from "canvaskit-wasm/full";
 
@@ -35,6 +36,8 @@ const CanvasContext = createContext<{
   seek(frame: number): void;
   zoomByCentered(factor: number): void;
   resetCamera(): void;
+  gifExportProgress: Accessor<GifExportProgress | null>;
+  exportGif(): Promise<void>;
 }>();
 
 export function CanvasProvider(props: { children: JSX.Element }) {
@@ -57,6 +60,7 @@ export function CanvasProvider(props: { children: JSX.Element }) {
   const [currentFrame, setCurrentFrame] = createSignal(0);
   const [canvasKit] = createResource(getCanvasKit);
   const [textOverrides, setTextOverrides] = createSignal<Record<string, string>>({});
+  const [gifExportProgress, setGifExportProgress] = createSignal<GifExportProgress | null>(null);
   const currentScene = createMemo(() => {
     const { project, scene } = params;
     if (!project || !scene) return null;
@@ -293,6 +297,37 @@ export function CanvasProvider(props: { children: JSX.Element }) {
     }
 
     sourceDirty = false;
+  };
+
+  const exportGif = async () => {
+    if (gifExportProgress()) return; // already exporting
+    const ck = canvasKit();
+    const anim = animation();
+    if (!ck || !anim) return;
+
+    const project = params.project ?? "scene";
+    const scene = params.scene ?? "export";
+    // Export drives the shared animation's frame pointer directly (it renders
+    // to its own offscreen surface, but seekFrame() is global to the anim
+    // object), so pause the live playhead while it runs to avoid the visible
+    // canvas racing against it, then resync afterwards.
+    const wasPlaying = playing();
+    setPlaying(false);
+    setGifExportProgress({ frame: 0, totalFrames: 1 });
+    try {
+      await exportSceneGif({
+        canvasKit: ck,
+        animation: anim,
+        fps: fps(),
+        totalFrames: totalFrames(),
+        filename: `${project}-${scene}.gif`,
+        onProgress: setGifExportProgress,
+      });
+    } finally {
+      setGifExportProgress(null);
+      dirty = true; // resync the visible canvas to the live playhead frame
+      setPlaying(wasPlaying);
+    }
   };
 
   const togglePlayback = () => setPlaying((v) => !v);
@@ -571,6 +606,8 @@ export function CanvasProvider(props: { children: JSX.Element }) {
         seek,
         zoomByCentered,
         resetCamera,
+        gifExportProgress,
+        exportGif,
       }}>
       <div class="relative h-screen w-screen bg-canvas">
         <canvas ref={canvas} id="main-canvas" class="block h-full w-full" />
