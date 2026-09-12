@@ -6,6 +6,7 @@ import type { Plugin, ViteDevServer } from "vite";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ChatMessage } from "../src/types/common";
 import { resolveWorkspace } from "./workspace";
+import { resolveClaudePath } from "./claude-cli";
 
 // Ceiling for one `claude -p` turn — covers reading references, editing a
 // scene, and running the two validation scripts. Killed past this so a stuck
@@ -13,6 +14,10 @@ import { resolveWorkspace } from "./workspace";
 const WORKER_TIMEOUT_MS = 15 * 60 * 1000;
 
 const FALLBACK_ERROR_TEXT = "요청을 처리하는 중에 문제가 생겼어요. 잠시 후 다시 말씀해 주세요.";
+
+const CLAUDE_MISSING_TEXT =
+  "이 컴퓨터에 Claude Code가 아직 설치되어 있지 않아서 요청을 처리할 수 없어요. " +
+  "https://claude.com/download 에서 설치한 뒤 다시 말씀해 주세요.";
 
 // Attached SVGs are text and small by nature; this is generous headroom
 // against an accidentally-huge or non-SVG file, not a real-world SVG size.
@@ -152,7 +157,31 @@ export function mailboxPlugin(): Plugin {
     runClaude(server, item);
   }
 
+  /** Write a final reply into the placeholder and let the queue move on. */
+  function settleWith(server: ViteDevServer, item: QueueItem, text: string, isError: boolean): void {
+    const thread = readThread(item.project);
+    const message = thread.messages.find((m) => m.id === item.placeholderId);
+    if (message) {
+      message.text = text;
+      message.status = isError ? "error" : "done";
+    }
+    writeThread(item.project, thread);
+    broadcast(server, item.project);
+    activeItem = null;
+    busy = false;
+    processNext(server);
+  }
+
   function runClaude(server: ViteDevServer, item: QueueItem, forceNewSession = false): void {
+    // Resolved up front rather than relying on PATH: a GUI-launched server has
+    // none of the per-user install locations on it.
+    const claudePath = resolveClaudePath();
+    if (!claudePath) {
+      console.error("[mailbox] claude executable not found — is Claude Code installed?");
+      settleWith(server, item, CLAUDE_MISSING_TEXT, true);
+      return;
+    }
+
     const sessionId = forceNewSession ? null : readThread(item.project).sessionId;
     // The project is named explicitly rather than left to /__context alone:
     // if the queue is backed up, the browser's live state may have moved on
@@ -169,7 +198,7 @@ export function mailboxPlugin(): Plugin {
     let stderr = "";
     let settled = false;
 
-    const child = spawn("claude", args, { cwd: projectRoot, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(claudePath, args, { cwd: projectRoot, stdio: ["ignore", "pipe", "pipe"] });
     activeChild = child;
 
     const timer = setTimeout(() => child.kill(), WORKER_TIMEOUT_MS);
