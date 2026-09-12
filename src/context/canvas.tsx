@@ -9,6 +9,7 @@ import { parseLottieFile, createSceneFromDoc } from '@/lib/import';
 import { exportSceneGif, type GifExportProgress } from '@/lib/gif-export';
 
 import type { CanvasKit, Surface, ManagedSkottieAnimation, Font, Paint, Typeface } from "canvaskit-wasm/full";
+import { onServerEvent } from "@/lib/live";
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 32;
@@ -78,7 +79,7 @@ export function CanvasProvider(props: { children: JSX.Element }) {
   });
 
   onMount(() => {
-    import.meta.hot?.on("scene:source", (data: { lottie: string }) => {
+    onServerEvent<{ lottie: string }>("scene:source", (data) => {
       if (currentScene()?.lottie === data.lottie) {
         refetchScene();
       }

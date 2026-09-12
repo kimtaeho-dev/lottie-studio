@@ -1,6 +1,7 @@
 import { createContext, createResource, createSignal, useContext, type JSX } from "solid-js";
 import { useParams } from "@solidjs/router";
 import type { ChatMessage } from "@/types";
+import { onServerEvent } from "@/lib/live";
 
 /** A file staged for the next outgoing message, read as text client-side (SVG only). */
 export interface PendingAttachment {
@@ -29,7 +30,7 @@ export function ChatProvider(props: { children: JSX.Element }) {
   const [data, { mutate }] = createResource(() => params.project, loadMessages, { initialValue: [] });
   const [sending, setSending] = createSignal(false);
 
-  import.meta.hot?.on("chat:update", (payload: { project: string; messages: ChatMessage[] }) => {
+  onServerEvent<{ project: string; messages: ChatMessage[] }>("chat:update", (payload) => {
     if (payload.project === params.project) mutate(payload.messages);
   });
 

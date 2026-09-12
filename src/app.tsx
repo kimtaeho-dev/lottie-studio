@@ -5,6 +5,7 @@ import { ScenesContainer } from '@/components/scenes-container';
 import { SidebarRight } from '@/components/sidebar-right';
 import { ChatPanel } from '@/components/chat-panel';
 import { useUI } from '@/context/ui';
+import { isLive } from "@/lib/live";
 
 export function App() {
   const { controlsExpanded } = useUI();
@@ -20,7 +21,7 @@ export function App() {
       </div>
       <div class="absolute right-4 top-4 bottom-4 flex flex-col gap-4">
         <SidebarRight />
-        <Show when={import.meta.env.DEV}>
+        <Show when={isLive()}>
           <ChatPanel />
         </Show>
       </div>

@@ -1,9 +1,12 @@
 import { createContext, createResource, useContext, type JSX } from "solid-js";
 import type { ScenesTree, Project, Scene } from "@/types";
+import { markLive, onServerEvent } from "@/lib/live";
 
-// Dev: the scenes-discovery plugin serves a live tree at /__scenes and pushes
-// updates over the HMR socket. Build: the plugin emits a static scenes.json.
-const SCENES_URL = import.meta.env.DEV ? "/__scenes" : "/scenes.json";
+// A studio backend (dev server, or the packaged app's own server) serves a live
+// tree at /__scenes and pushes updates. Without one — the bundle deployed as
+// plain static files — fall back to the scenes.json snapshot emitted at build.
+const LIVE_SCENES_URL = "/__scenes";
+const STATIC_SCENES_URL = "/scenes.json";
 
 const ScenesContext = createContext<{
   projects: () => Project[];
@@ -14,8 +17,18 @@ const ScenesContext = createContext<{
 }>();
 
 async function loadScenes(): Promise<ScenesTree> {
-  const res = await fetch(SCENES_URL);
-  if (!res.ok) throw new Error(`Failed to load scenes from ${SCENES_URL} (HTTP ${res.status})`);
+  try {
+    const res = await fetch(LIVE_SCENES_URL);
+    if (res.ok) {
+      markLive(true);
+      return (await res.json()) as ScenesTree;
+    }
+  } catch {
+    // no backend listening — fall through to the static snapshot
+  }
+  markLive(false);
+  const res = await fetch(STATIC_SCENES_URL);
+  if (!res.ok) throw new Error(`Failed to load scenes from ${STATIC_SCENES_URL} (HTTP ${res.status})`);
   return (await res.json()) as ScenesTree;
 }
 
@@ -23,7 +36,7 @@ export function ScenesProvider(props: { children: JSX.Element }) {
   const [tree, { mutate }] = createResource(loadScenes);
 
   // Live-patch the tree when the dev plugin reports filesystem changes.
-  import.meta.hot?.on("scenes:update", (next: ScenesTree) => mutate(next));
+  onServerEvent<ScenesTree>("scenes:update", (next) => mutate(next));
 
   const projects = () => tree()?.projects ?? [];
   const findProject = (slug: string) => projects().find((p) => p.slug === slug);
