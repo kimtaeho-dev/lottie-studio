@@ -17,7 +17,7 @@
     "dev": "vite",
     "dist:mac": "npm run build && npm run build:electron && electron-builder --mac",
     "icon": "electron scripts/make-icon.cjs",
-    "postinstall": "node scripts/copy-canvaskit.mjs && node scripts/seed-example-projects.mjs",
+    "postinstall": "node scripts/copy-canvaskit.mjs",
     "preview": "vite preview",
     "workspace:init": "node scripts/init-workspace.mjs"
   },
@@ -88,10 +88,6 @@
       {
         "from": "scripts",
         "to": "seed/scripts"
-      },
-      {
-        "from": "examples",
-        "to": "seed/examples"
       }
     ],
     "mac": {

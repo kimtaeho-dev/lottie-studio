@@ -17,7 +17,7 @@
 // 구간 끝에서 정상 범위 안에 있고, 문제는 그 사이 어딘가에서 순간적으로
 // 일어나기 때문이다.
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { relative } from "node:path";
 
 const INTERIOR_MARGIN = 0.03; // u가 이 값보다 경계에 가까우면 "경계"로 본다
@@ -116,10 +116,25 @@ function checkFile(file) {
   return { file, propCount: props.length, findings: allFindings };
 }
 
-const files = process.argv.slice(2);
-if (files.length === 0) {
+/**
+ * A shell that finds no matches passes the glob through literally, which would
+ * otherwise be reported as an unreadable file. An empty studio is a normal
+ * state — nothing to check is not a failure.
+ */
+function dropUnexpandedGlobs(paths) {
+  return paths.filter((file) => !/[*?]/.test(file) || existsSync(file));
+}
+
+const requested = process.argv.slice(2);
+if (requested.length === 0) {
   console.error("사용법: node scripts/check-motion-smoothness.mjs <lottie.json...>");
   process.exit(2);
+}
+
+const files = dropUnexpandedGlobs(requested);
+if (files.length === 0) {
+  console.log("검사할 씬이 없다.");
+  process.exit(0);
 }
 
 let totalFindings = 0;

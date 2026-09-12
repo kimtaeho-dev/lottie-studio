@@ -60,9 +60,9 @@ lottie-studio 사용자는 코드를 모르는 디자이너인 경우가 대부�
    파일을 설치하는 일이라 사용자 동의가 필요하다. [nodejs.org](https://nodejs.org)
    LTS 설치 링크를 안내하고, 설치가 끝나면 다시 말해달라고 한다.
 2. **의존성 설치**: `npm install` 을 실행한다 (`postinstall` 이
-   `public/canvaskit.wasm` 생성과 예시 프로젝트 심기(`public/projects/`가
-   비어있을 때만 `examples/`에서 복사)까지 자동으로 처리한다). 이미
-   `node_modules` 와 `public/canvaskit.wasm` 이 있으면 건너뛰어도 된다.
+   `public/canvaskit.wasm` 생성까지 자동으로 처리한다). 이미 `node_modules` 와
+   `public/canvaskit.wasm` 이 있으면 건너뛰어도 된다. 씬 폴더는 비어 있는 게
+   정상이다 — 예시를 심지 않으므로, 사용자가 처음이면 씬부터 만들어준다.
 3. **서버 확인 후 실행**: 새로 켜기 전에 이미 떠 있는 서버가 있는지 먼저
    확인한다 (예: `curl -s http://localhost:3030/__context` 로 응답이 오는지,
    포트를 모르면 3030~3035 정도를 순서대로 찔러본다). 이미 떠 있으면 그

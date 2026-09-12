@@ -1,11 +1,12 @@
 # 예시 갤러리
 
-`npm run dev` 로 플레이어를 열면 사이드바에 예시 프로젝트 여러 개가 보인다
-(원본은 `examples/`에 있고, `public/projects/`는 설치 시 거기서 자동으로
-채워진다 — [README 부록](../README.md#씬-구조) 참고). 그중 프롬프트와 결과가
-나란히 문서화된 5개를 아래에 소개한다. 각각을 **어떤 프롬프트로 에이전트에게
-시켰을 때** 나온 결과인지 적어뒀다. 그대로 복사해 써도 되고, 자기 브랜드
-컬러·사이즈·길이로 숫자만 바꿔서 시작해도 된다.
+**어떤 프롬프트가 어떤 결과로 이어지는지** 보여주는 모음이다. 아래 5개는 실제로
+이 도구로 만든 씬이고, 만들 때 쓴 프롬프트 원문을 그대로 실었다. 복사해서 써도
+되고, 자기 브랜드 컬러·사이즈·길이로 숫자만 바꿔서 시작해도 된다.
+
+스튜디오는 빈 상태로 시작하므로 이 씬들이 미리 깔려 있지는 않다. 완성된 파일을
+직접 보고 싶다면 이 저장소의 `examples/` 폴더에 그대로 있다 — `lottie.json`을
+플레이어 캔버스에 끌어다 놓으면 새 씬으로 열린다.
 
 이 5개는 텍스트 없이 도형·트림 패스·리피터·카메라 무빙만으로 만들었다. 타이포/
 로워서드/프로덕트 프로모처럼 실제 단어가 들어가는 씬은 아직 갤러리에 없다 —
@@ -22,11 +23,10 @@
 > 잎 3개가 120도 대칭으로 모이는 기하학적 마크로 해줘 — 외곽선이 먼저 그려지고,
 > 그 다음 채워지면서 살짝 튕기듯 정착하는 느낌으로. 2초 안에 끝나야 해.
 
-- 결과: `public/projects/logo-reveal/scene-1/lottie.json` (5.4KB)
+- 파일: `examples/logo-reveal/scene-1/lottie.json` (5.4KB)
 - 기법: 리피터(`ty:"rp"`, 3카피·120° 회전)로 잎 하나를 3엽 핀휠로 복제, 단일
   트림 패스로 외곽선 드로우온 → 필 크로스페이드 → 스케일 96→104→100% 오버슛 세틀
 - 슬롯: `accentColor` (마크 색)
-- 확인: `/logo-reveal/scene-1` · `/compare.html?src=/projects/logo-reveal/scene-1/lottie.json`
 
 ## 로딩 스피너 — `loading-spinner`
 
@@ -34,11 +34,10 @@
 > 심플한 코멧(꼬리 달린 원호) 스타일 원형 로더로 하고, 끊김 없이 계속 반복
 > 재생되게 해줘. 1.2초 루프.
 
-- 결과: `public/projects/loading-spinner/scene-1/lottie.json` (2.3KB)
+- 파일: `examples/loading-spinner/scene-1/lottie.json` (2.3KB)
 - 기법: 원 스트로크에 고정 트림 패스(27% 아크)를 두고, 레이어 자체를 0→360°
   선형 회전 — 각속도가 이음매에서 끊기지 않아 완전히 매끄러운 루프
 - 슬롯: `accentColor` (스트로크 색)
-- 확인: `/loading-spinner/scene-1` · `/compare.html?src=/projects/loading-spinner/scene-1/lottie.json`
 
 ## 데이터/스탯 리빌 — `data-stat-reveal`
 
@@ -47,11 +46,10 @@
 > 순차적으로 올라오는 걸 보여줘. 숫자나 텍스트는 넣지 말고 순수하게 도형으로만.
 > 2.5초 정도, 전부 브랜드 컬러로 통일해줘.
 
-- 결과: `public/projects/data-stat-reveal/scene-1/lottie.json` (25.5KB)
+- 파일: `examples/data-stat-reveal/scene-1/lottie.json` (25.5KB)
 - 기법: 원형 프로그레스 링(트림 패스, 0→82%→78% 오버슛 세틀) + 5개 바
   (5프레임씩 스태거, 오버슛 세틀), 카드·구분선 없이 여백으로만 두 영역 분리
 - 슬롯: `bgColor` (배경), `accentColor` (링·바 색)
-- 확인: `/data-stat-reveal/scene-1` · `/compare.html?src=/projects/data-stat-reveal/scene-1/lottie.json`
 
 ## 카메라 씬 모션 — `camera-scene-motion`
 
@@ -59,12 +57,11 @@
 > 화면보다 넓게 배치해두고, 카메라가 푸시인하면서 팬 되어 최종적으로 브랜드
 > 컬러의 대각선 바에 프레이밍이 맞춰지는 3초짜리 무빙으로 해줘.
 
-- 결과: `public/projects/camera-scene-motion/scene-1/lottie.json` (9.6KB)
+- 파일: `examples/camera-scene-motion/scene-1/lottie.json` (9.6KB)
 - 기법: 1920×1080 뷰포트보다 큰 가상 구성(원·카드 클러스터·대각선 바)을
   프리컴프에 담고, 프리컴프 레이어의 position+scale을 함께 애니메이션해 푸시인
   + 팬 카메라 무빙 구현
 - 슬롯: `bgColor` (배경), `accentColor` (대각선 바 색)
-- 확인: `/camera-scene-motion/scene-1` · `/compare.html?src=/projects/camera-scene-motion/scene-1/lottie.json`
 
 ## 트레이딩 리그 대결 바 — `tug-of-war-bars`
 
@@ -74,7 +71,7 @@
 > 시작해서 한쪽이 밀고 들어왔다가 버티고, 다시 중앙을 가로질러 반대쪽이
 > 밀고 들어왔다가 버티고, 다시 중앙으로 돌아와 루프가 이어지게 해줘.
 
-- 결과: `public/projects/tug-of-war-bars/scene-1/lottie.json`
+- 파일: `examples/tug-of-war-bars/scene-1/lottie.json`
 - 기법: 각 팀 바를 `rc`(작은 코너 라디우스, 4모서리 동일 적용) + 그 안쪽
   경계 쪽에 같은 색 직각 `rc`를 덧대는 방식으로 구현 — 라운드는 바깥쪽
   끝에서만 보이고 안쪽(경계선과 맞닿는 쪽)은 오버레이가 덮어 직각으로
@@ -83,7 +80,6 @@
   8개 키프레임으로 중앙→A우세(오버슛)→버팀→중앙 통과→B우세(오버슛)→버팀→
   중앙(루프 시작점과 동일)까지 구성
 - 슬롯: `teamAColor`, `teamBColor`
-- 확인: `/tug-of-war-bars/scene-1` · `/compare.html?src=/projects/tug-of-war-bars/scene-1/lottie.json`
 - 참고: 이 씬을 만들면서 두 가지 실제 lottie-web 버그를 발견해 스킬 문서와
   스캐너에 반영했다 — 자세한 내용은
   [`renderer-constraints.md`](../skills/text-to-lottie/references/renderer-constraints.md)의
@@ -96,7 +92,7 @@
 ## 이 갤러리를 쓰는 법
 
 1. 위 프롬프트 중 하나를 거의 그대로, 사이즈·색·길이만 바꿔서 에이전트에게 준다.
-2. 결과가 마음에 안 들면 "이 씬처럼 해줘" 하고 기존 씬 경로를 같이 알려준다 —
-   에이전트가 같은 기법(리피터, 트림 패스, 스태거, 카메라 무빙)을 재사용하기
-   쉬워진다.
+2. 결과가 마음에 안 들면 위 프롬프트를 그대로 보여주면서 "이런 느낌으로 해줘"
+   라고 말한다 — 에이전트가 같은 기법(리피터, 트림 패스, 스태거, 카메라 무빙)을
+   재사용하기 쉬워진다.
 3. 새로 괜찮은 씬이 나오면 이 문서에 프롬프트를 같이 추가해서 갤러리를 늘려간다.

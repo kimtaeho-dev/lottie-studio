@@ -7,7 +7,7 @@
 // BLOCK 이 하나라도 있으면 exit 1, WARN 만 있으면 exit 0.
 // 의존성 없는 순수 Node ESM. 브라우저 없이 돌릴 수 있는 유일한 파리티 게이트다.
 
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { relative } from "node:path";
 
 const DEFAULT_MAX_KB = 150;
@@ -19,6 +19,15 @@ const WARN = "WARN";
 // ---------------------------------------------------------------------------
 // 인자 파싱
 // ---------------------------------------------------------------------------
+
+/**
+ * A shell that finds no matches passes the glob through literally, which would
+ * otherwise be reported as an unreadable file. An empty studio is a normal
+ * state — nothing to check is not a failure.
+ */
+function dropUnexpandedGlobs(paths) {
+  return paths.filter((file) => !/[*?]/.test(file) || existsSync(file));
+}
 
 function parseArgs(argv) {
   const files = [];
@@ -385,10 +394,17 @@ function countLevels(findings) {
 // main
 // ---------------------------------------------------------------------------
 
-const { files, maxKb } = parseArgs(process.argv.slice(2));
+const { files: requested, maxKb } = parseArgs(process.argv.slice(2));
+
+if (requested.length === 0) {
+  fail("검사할 lottie.json 경로를 하나 이상 넘겨야 한다.");
+}
+
+const files = dropUnexpandedGlobs(requested);
 
 if (files.length === 0) {
-  fail("검사할 lottie.json 경로를 하나 이상 넘겨야 한다.");
+  console.log("검사할 씬이 없다.");
+  process.exit(0);
 }
 
 let totalBlock = 0;
