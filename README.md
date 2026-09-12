@@ -43,7 +43,7 @@
 없습니다.
 
 1. [Releases 페이지](https://github.com/kimtaeho-dev/lottie-studio/releases/latest)에서
-   `Lottie Studio-<버전>-arm64.dmg`를 받습니다. (2020년 이전 인텔 맥이라면
+   `Lottie.Studio-<버전>-arm64.dmg`를 받습니다. (2020년 이전 인텔 맥이라면
    `arm64`가 안 붙은 쪽을 받으세요.)
 2. 받은 파일을 두 번 눌러 열고, **Lottie Studio**를 응용 프로그램 폴더로
    끌어다 놓습니다.
