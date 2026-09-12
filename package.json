@@ -2,7 +2,7 @@
   "name": "text-to-lottie",
   "productName": "Lottie Studio",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "MIT",
   "type": "module",
   "main": "dist-electron/main.cjs",
