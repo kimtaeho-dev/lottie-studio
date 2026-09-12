@@ -6,13 +6,14 @@
   "type": "module",
   "packageManager": "npm@11.8.0",
   "scripts": {
-    "dev": "vite",
     "build": "tsc -b && vite build",
-    "check:text-slots": "node --experimental-strip-types --test scripts/text-slot-unicode.test.mjs",
     "check:lottie": "node scripts/check-lottie-web-compat.mjs public/projects/*/*/lottie.json",
     "check:motion": "node scripts/check-motion-smoothness.mjs public/projects/*/*/lottie.json",
+    "check:text-slots": "node --experimental-strip-types --test scripts/text-slot-unicode.test.mjs",
+    "dev": "vite",
+    "postinstall": "node scripts/copy-canvaskit.mjs && node scripts/seed-example-projects.mjs",
     "preview": "vite preview",
-    "postinstall": "node scripts/copy-canvaskit.mjs && node scripts/seed-example-projects.mjs"
+    "workspace:init": "node scripts/init-workspace.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
