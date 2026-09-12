@@ -28,6 +28,33 @@ function contentTypeFor(file: string): string {
   return CONTENT_TYPES[path.extname(file).toLowerCase()] ?? "application/octet-stream";
 }
 
+/**
+ * The name the designer sees, kept apart from the folder name.
+ *
+ * Folder names have to survive being a URL segment and a path on disk, so they
+ * stay ASCII — which would erase a Korean name entirely (`"로고 리빌"` slugifies
+ * to the empty string). Storing the display name beside the scenes lets the
+ * folder stay boring while the sidebar shows what was actually typed, and lets
+ * a rename leave every existing URL intact.
+ */
+const PROJECT_META = "project.json";
+
+function readProjectLabel(projectDir: string, slug: string): string {
+  try {
+    const meta = JSON.parse(fs.readFileSync(path.join(projectDir, PROJECT_META), "utf8")) as {
+      label?: unknown;
+    };
+    if (typeof meta.label === "string" && meta.label.trim()) return meta.label.trim();
+  } catch {
+    // no metadata (or unreadable) — fall back to the folder name
+  }
+  return titleCase(slug);
+}
+
+function writeProjectLabel(projectDir: string, label: string): void {
+  fs.writeFileSync(path.join(projectDir, PROJECT_META), `${JSON.stringify({ label }, null, 2)}\n`);
+}
+
 /** "main-project" -> "Main Project", "scene-1" -> "Scene 1" */
 function titleCase(slug: string): string {
   return slug
@@ -270,7 +297,7 @@ export function scanProjects(projectsDir: string): ScenesTree {
 
     scenes.sort((a, b) => a.order - b.order || a.slug.localeCompare(b.slug));
     if (scenes.length > 0) {
-      projects.push({ slug: projectSlug, label: titleCase(projectSlug), scenes });
+      projects.push({ slug: projectSlug, label: readProjectLabel(projectDir, projectSlug), scenes });
     }
   }
 
@@ -341,15 +368,31 @@ export function scenesPlugin(): Plugin {
         });
       }
 
-      // Create a new project with a default scene (POST, body: { name }), or
-      // delete an existing project and all its scenes (DELETE, body: { project }).
+      // Create a new project with a default scene (POST, body: { name }),
+      // rename one (PATCH, body: { project, name }), or delete it and all its
+      // scenes (DELETE, body: { project }).
       server.middlewares.use("/__scenes/project", async (req, res) => {
         const body = await readJsonBody(req);
         if (req.method === "POST") {
-          const projectSlug = uniqueDir(projectsDir, slugify(String(body.name ?? "")));
+          const name = String(body.name ?? "").trim();
+          const projectSlug = uniqueDir(projectsDir, slugify(name));
           const sceneSlug = "scene-1";
           createScene(path.join(projectsDir, projectSlug, sceneSlug));
+          if (name) writeProjectLabel(path.join(projectsDir, projectSlug), name);
           return json(res, 201, { project: projectSlug, scene: sceneSlug });
+        }
+        if (req.method === "PATCH") {
+          // Only the display name changes; the folder — and every URL pointing
+          // at it — stays exactly as it was.
+          const projectDir = path.resolve(projectsDir, String(body.project ?? ""));
+          if (!projectDir.startsWith(projectsDir + path.sep) || !fs.existsSync(projectDir)) {
+            return json(res, 404, { error: "project not found" });
+          }
+          const name = String(body.name ?? "").trim();
+          if (!name) return json(res, 400, { error: "name required" });
+          writeProjectLabel(projectDir, name);
+          server.ws.send({ type: "custom", event: "scenes:update", data: scanProjects(projectsDir) });
+          return json(res, 200, { ok: true });
         }
         if (req.method === "DELETE") {
           const projectDir = path.resolve(projectsDir, String(body.project ?? ""));

@@ -1,6 +1,6 @@
 import { createSignal, For, Show } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
-import { Trash } from "lucide-solid";
+import { Pencil, Trash } from "lucide-solid";
 import { Icon } from "@/components/ui/icon";
 import {
   ContextMenu,
@@ -21,6 +21,9 @@ export function SidebarLeft() {
   const { controlsExpanded, toggleControls } = useUI();
   const [creating, setCreating] = createSignal(false);
   const [name, setName] = createSignal("New project");
+  // Slug of the project whose name is being edited in place, if any.
+  const [renaming, setRenaming] = createSignal<string | null>(null);
+  const [renameName, setRenameName] = createSignal("");
 
   const handleBlur = () => {
     setCreating(false);
@@ -55,6 +58,29 @@ export function SidebarLeft() {
       el.select();
     });
   }
+
+  const startRename = (project: Project) => {
+    setRenameName(project.label);
+    setRenaming(project.slug);
+  };
+
+  const commitRename = async (project: Project) => {
+    const value = renameName().trim();
+    setRenaming(null);
+    if (!value || value === project.label) return;
+    await fetch("/__scenes/project", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project: project.slug, name: value }),
+    });
+    // The folder never moves, so the current route stays valid; the sidebar
+    // picks the new name up from the tree push.
+  };
+
+  const handleRenameKeyDown = (e: KeyboardEvent, project: Project) => {
+    if (e.key === "Escape") setRenaming(null);
+    if (e.key === "Enter") void commitRename(project);
+  };
 
   const deleteProject = async (project: Project) => {
     await fetch("/__scenes/project", {
@@ -114,6 +140,23 @@ export function SidebarLeft() {
             {(project) => {
               const active = () => project.slug === params.project;
               return (
+                <Show
+                  when={renaming() !== project.slug}
+                  fallback={
+                    <div class="flex items-center h-7 rounded-md px-0.5 gap-0.5 my-0.5 text-foreground">
+                      <Icon name="folder" />
+                      <input
+                        ref={handleInputMounted}
+                        type="text"
+                        value={renameName()}
+                        onInput={(e) => setRenameName(e.currentTarget.value)}
+                        onKeyDown={(e) => handleRenameKeyDown(e, project)}
+                        onBlur={() => void commitRename(project)}
+                        class="bg-transparent text-xxs outline-none flex-1 w-0 focus-ring px-1 py-0.5 rounded-sm"
+                      />
+                    </div>
+                  }
+                >
                 <ContextMenu>
                   <ContextMenuTrigger
                     as="button"
@@ -132,12 +175,17 @@ export function SidebarLeft() {
                     </Show>
                   </ContextMenuTrigger>
                   <ContextMenuContent>
+                    <ContextMenuItem onSelect={() => startRename(project)}>
+                      <Pencil />
+                      <span>이름 바꾸기</span>
+                    </ContextMenuItem>
                     <ContextMenuItem onSelect={() => deleteProject(project)}>
                       <Trash />
-                      <span>Delete project</span>
+                      <span>프로젝트 삭제</span>
                     </ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>
+                </Show>
               );
             }}
           </For>
