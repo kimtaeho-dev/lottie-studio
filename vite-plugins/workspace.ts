@@ -89,9 +89,18 @@ function workspaceManifest(): string {
 }
 
 /**
+ * Marker recording that the example scenes have already been planted once.
+ *
+ * Seeding cannot key off "the projects folder is empty": that is also true when
+ * the designer has deliberately deleted every project, and re-seeding on the
+ * next launch would resurrect what they just threw away.
+ */
+const SEED_MARKER = ".examples-seeded";
+
+/**
  * Populate a relocated workspace from the app bundle. Agent assets are refreshed
- * on every run so an app update ships new skill references, but `public/projects/`
- * is only ever seeded when empty — that is the designer's own work.
+ * on every run so an app update ships new skill references; the example scenes
+ * are planted only on the very first run, and never again.
  */
 export function seedWorkspace(sourceRoot: string, ws: Workspace): void {
   fs.mkdirSync(ws.projectsDir, { recursive: true });
@@ -112,8 +121,14 @@ export function seedWorkspace(sourceRoot: string, ws: Workspace): void {
 
   fs.writeFileSync(path.join(ws.root, "package.json"), workspaceManifest());
 
-  if (fs.readdirSync(ws.projectsDir).length === 0) {
-    const examples = path.join(sourceRoot, "examples");
-    if (fs.existsSync(examples)) fs.cpSync(examples, ws.projectsDir, { recursive: true });
+  const marker = path.join(ws.root, SEED_MARKER);
+  if (!fs.existsSync(marker)) {
+    // A workspace that already holds projects predates this marker; record that
+    // it is seeded rather than adding examples on top of existing work.
+    if (fs.readdirSync(ws.projectsDir).length === 0) {
+      const examples = path.join(sourceRoot, "examples");
+      if (fs.existsSync(examples)) fs.cpSync(examples, ws.projectsDir, { recursive: true });
+    }
+    fs.writeFileSync(marker, `${new Date().toISOString()}\n`);
   }
 }
