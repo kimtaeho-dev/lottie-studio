@@ -3,9 +3,30 @@ import path from "node:path";
 import type { Plugin } from "vite";
 import type { Scene, Project, ScenesTree } from "../src/types/common";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { resolveWorkspace, type Workspace } from "./workspace";
 
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
 const FONT_EXTENSIONS = new Set([".ttf", ".otf", ".ttc"]);
+
+const CONTENT_TYPES: Record<string, string> = {
+  ".json": "application/json",
+  ".lottie": "application/zip",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+  ".ttf": "font/ttf",
+  ".otf": "font/otf",
+  ".ttc": "font/collection",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+};
+
+function contentTypeFor(file: string): string {
+  return CONTENT_TYPES[path.extname(file).toLowerCase()] ?? "application/octet-stream";
+}
 
 /** "main-project" -> "Main Project", "scene-1" -> "Scene 1" */
 function titleCase(slug: string): string {
@@ -263,7 +284,9 @@ export function scanProjects(projectsDir: string): ScenesTree {
  * - Build: emits a static `scenes.json` for production.
  */
 export function scenesPlugin(): Plugin {
+  let workspace: Workspace | null = null;
   let projectsDir = "";
+  let outDir = "";
   let live: LiveState | null = null; // latest browser playback snapshot
 
   // Exact content of the last lottie.json the plugin wrote per path. Used to
@@ -275,7 +298,10 @@ export function scenesPlugin(): Plugin {
     name: "scenes-discovery",
 
     configResolved(config) {
-      projectsDir = path.resolve(config.root, "public/projects");
+      workspace = resolveWorkspace(config.root);
+      projectsDir = workspace.projectsDir;
+      outDir = path.resolve(config.root, config.build.outDir);
+      fs.mkdirSync(projectsDir, { recursive: true });
     },
 
     configureServer(server) {
@@ -284,6 +310,36 @@ export function scenesPlugin(): Plugin {
         res.setHeader("Content-Type", "application/json");
         res.end(JSON.stringify(body));
       };
+
+      // The scene tree is served from the workspace, wherever that is. Vite's
+      // publicDir handler only covers the in-repo case, and the packaged app's
+      // server has no publicDir at all, so this owns `/projects/...` in both
+      // modes. Registered directly on the middleware stack, which runs ahead of
+      // Vite's internal static handlers.
+      {
+        server.middlewares.use("/projects", (req, res) => {
+          const rel = decodeURIComponent((req.url ?? "/").split("?")[0]);
+          const file = path.join(projectsDir, rel);
+          if (file !== projectsDir && !file.startsWith(projectsDir + path.sep)) {
+            res.statusCode = 403;
+            return res.end("Forbidden");
+          }
+          let stat: fs.Stats;
+          try {
+            stat = fs.statSync(file);
+          } catch {
+            res.statusCode = 404;
+            return res.end("Not Found");
+          }
+          if (!stat.isFile()) {
+            res.statusCode = 404;
+            return res.end("Not Found");
+          }
+          res.setHeader("Content-Type", contentTypeFor(file));
+          res.setHeader("Cache-Control", "no-cache");
+          fs.createReadStream(file).pipe(res);
+        });
+      }
 
       // Create a new project with a default scene (POST, body: { name }), or
       // delete an existing project and all its scenes (DELETE, body: { project }).
@@ -418,6 +474,14 @@ export function scenesPlugin(): Plugin {
         fileName: "scenes.json",
         source: JSON.stringify(scanProjects(projectsDir)),
       });
+    },
+
+    // `public/projects/` is the machine-local workspace, not shippable content:
+    // Vite's publicDir copy would otherwise bake whoever ran the build into the
+    // bundle. At runtime the tree is served from the workspace instead.
+    closeBundle() {
+      const copied = path.resolve(outDir, "projects");
+      fs.rmSync(copied, { recursive: true, force: true });
     },
   };
 }

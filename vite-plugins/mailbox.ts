@@ -5,6 +5,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import type { Plugin, ViteDevServer } from "vite";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ChatMessage } from "../src/types/common";
+import { resolveWorkspace } from "./workspace";
 
 // Ceiling for one `claude -p` turn — covers reading references, editing a
 // scene, and running the two validation scripts. Killed past this so a stuck
@@ -262,9 +263,13 @@ export function mailboxPlugin(): Plugin {
     name: "mailbox",
 
     configResolved(config) {
-      projectRoot = config.root;
-      mailboxDir = path.resolve(config.root, ".mailbox");
-      projectsDir = path.resolve(config.root, "public/projects");
+      // The agent's cwd is the workspace, not the Vite root: in a packaged app
+      // the bundle is read-only, and claude needs somewhere it can actually
+      // write. In repo mode the two are the same directory.
+      const ws = resolveWorkspace(config.root);
+      projectRoot = ws.root;
+      mailboxDir = ws.mailboxDir;
+      projectsDir = ws.projectsDir;
     },
 
     configureServer(server) {
