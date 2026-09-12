@@ -44,6 +44,7 @@
   <h1 id="title">준비하는 중…</h1>
   <p id="body">잠시만 기다려 주세요.</p>
   <a id="link" class="link hidden"></a>
+  <a id="codeToggle" class="link hidden"></a>
   <input id="code" class="hidden" placeholder="브라우저에서 받은 코드를 붙여넣으세요" />
   <button id="action" class="hidden"></button>
   <div id="log" class="log"></div>
@@ -55,6 +56,12 @@
   const show = (id, visible) => el(id).classList.toggle("hidden", !visible);
 
   let pollTimer = null;
+  // 로그인 진행 중에는 상태를 다시 읽어도 화면을 덮어쓰지 않는다.
+  let awaitingLogin = false;
+
+  function startPolling() {
+    if (!pollTimer) pollTimer = setInterval(() => refresh().catch(() => {}), 2000);
+  }
 
   window.setup.onProgress((line) => {
     const log = el("log");
@@ -72,12 +79,19 @@
 
     if (status.ready) {
       if (pollTimer) clearInterval(pollTimer);
+      pollTimer = null;
+      awaitingLogin = false;
       setText("title", "준비 끝났습니다");
       setText("body", "스튜디오를 여는 중…");
       show("action", false);
       await window.setup.finish();
       return;
     }
+
+    // 로그인이 진행 중이면 화면은 그대로 두고 완료만 기다린다. 여기서 다시
+    // 그리면 사용자가 방금 누른 단계가 되돌아간 것처럼 보이고, 되돌아간
+    // 버튼을 누르면 진행 중이던 로그인 프로세스가 취소된다.
+    if (awaitingLogin) return;
 
     if (!status.claude) {
       setText("title", "한 가지만 설치하면 됩니다");
@@ -107,7 +121,10 @@
     // waits on stdin for the code it hands back, so the whole exchange happens
     // in this window.
     setText("title", "로그인만 하면 됩니다");
-    setText("body", "버튼을 누르면 브라우저가 열립니다. 로그인한 뒤 받은 코드를 여기에 붙여넣어 주세요.");
+    setText("body", "버튼을 누르면 브라우저가 열립니다. 로그인하면 이 창이 알아서 넘어갑니다.");
+    show("link", false);
+    show("codeToggle", false);
+    show("code", false);
     el("action").textContent = "로그인 시작";
     el("action").disabled = false;
     show("action", true);
@@ -121,23 +138,41 @@
 
     const result = await window.setup.startLogin();
     if (!result.ok) {
+      awaitingLogin = false;
       fail(result.error || "로그인을 시작하지 못했습니다.");
       el("action").disabled = false;
       el("action").textContent = "다시 시도";
       return;
     }
 
-    setText("body", "브라우저에서 로그인한 뒤, 화면에 나오는 코드를 아래에 붙여넣어 주세요.");
+    // 로그인은 두 가지로 끝난다. 브라우저가 알아서 완료해 주기도 하고,
+    // 코드를 보여주며 붙여넣기를 요구하기도 한다. 어느 쪽이든 되도록,
+    // 입력칸은 열어두되 완료 확인은 지금부터 계속 돌린다.
+    awaitingLogin = true;
+    startPolling();
+    setText("title", "브라우저에서 로그인해 주세요");
+    setText("body", "로그인이 끝나면 이 창이 자동으로 넘어갑니다. 그대로 두고 기다리시면 됩니다.");
+    show("action", false);
+
     const link = el("link");
     link.textContent = "브라우저가 안 열렸다면 여기를 누르세요";
     link.onclick = () => window.setup.openUrl(result.url);
     show("link", true);
-    show("code", true);
-    el("code").focus();
 
-    el("action").textContent = "확인";
-    el("action").disabled = false;
-    el("action").onclick = submitCode;
+    // 로그인은 대개 브라우저 쪽에서 그대로 끝난다. 코드를 보여주며 붙여넣기를
+    // 요구하는 경우에만 필요한 예비 경로라, 평소에는 접어둔다.
+    const toggle = el("codeToggle");
+    toggle.textContent = "코드를 입력하라는 화면이 나왔나요?";
+    toggle.onclick = () => {
+      show("codeToggle", false);
+      show("code", true);
+      el("code").focus();
+      el("action").textContent = "확인";
+      el("action").disabled = false;
+      el("action").onclick = submitCode;
+      show("action", true);
+    };
+    show("codeToggle", true);
     el("code").onkeydown = (e) => { if (e.key === "Enter") submitCode(); };
   }
 
@@ -150,14 +185,14 @@
 
     const result = await window.setup.submitCode(code);
     if (!result.ok) {
+      awaitingLogin = false;
       fail(result.error || "코드를 전달하지 못했습니다.");
       el("action").disabled = false;
       el("action").textContent = "다시 시도";
       el("action").onclick = startLogin;
       return;
     }
-    // The CLI stores credentials on its own schedule; poll until it reports in.
-    if (!pollTimer) pollTimer = setInterval(refresh, 2000);
+    startPolling();
   }
 
   refresh().catch((err) => fail(String(err?.message ?? err)));

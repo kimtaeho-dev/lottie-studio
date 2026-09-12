@@ -16,6 +16,27 @@ import { forgetClaudePath, isLoggedIn, resolveClaudePath } from "../vite-plugins
 
 const INSTALLER_URL = "https://claude.ai/install.sh";
 
+/**
+ * Installer output aimed at terminal users: PATH setup advice and a "run
+ * claude --help" pointer. Neither applies here — the app resolves the
+ * executable by path and never goes through a shell — and telling a designer
+ * to edit their shell config is exactly the thing this app exists to avoid.
+ * Hidden from the window; the main process still logs everything.
+ */
+const TERMINAL_ADVICE = [
+  /not in your PATH/i,
+  /shell config/i,
+  /export PATH=/,
+  /^Next:/i,
+  /claude --help/i,
+  /^[⚠●]/,
+  /Setup notes/i,
+];
+
+function isTerminalAdvice(line: string): boolean {
+  return TERMINAL_ADVICE.some((pattern) => pattern.test(line));
+}
+
 export interface SetupStatus {
   /** The CLI is installed and executable. */
   claude: boolean;
@@ -73,7 +94,10 @@ export async function installClaudeCode(onLine: (line: string) => void): Promise
 
   try {
     onLine("설치하는 중… 몇 분 걸릴 수 있어요.");
-    await run("/bin/bash", [scriptPath], onLine);
+    await run("/bin/bash", [scriptPath], (line) => {
+      console.log(`[install] ${line}`);
+      if (!isTerminalAdvice(line)) onLine(line);
+    });
   } finally {
     fs.rmSync(scriptPath, { force: true });
   }
