@@ -103,7 +103,7 @@ export function SidebarLeft() {
     >
       <div class="flex items-center justify-between h-12 px-3">
         <div class="flex items-center justify-center gap-1">
-          <span class="text-xxs font-strong">lottie-studio</span>
+          <span class="text-xxs font-strong">Lottie Studio</span>
         </div>
         <Button size="icon" variant="ghost" onClick={toggleControls}>
           <Icon name="sidebar" />
