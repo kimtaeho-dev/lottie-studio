@@ -114,9 +114,9 @@ Studio/`)에 저장되므로, 나중에 새 버전 앱으로 덮어써도 작업
 > 브랜드 컬러는 #2F6BFF. ease-in-out 타이밍으로."
 
 어떤 프롬프트가 어떤 결과로 이어지는지 감이 안 온다면
-[`docs/EXAMPLES.md`](docs/EXAMPLES.md)를 먼저 봐주세요. 실제로 써서 만든 예시
-씬 5개와, 그 씬을 만들 때 쓴 프롬프트 원문이 나란히 있습니다. 그대로 복사해서
-써도 되고, 숫자·색·문구만 바꿔서 시작해도 됩니다.
+[`docs/EXAMPLES.md`](docs/EXAMPLES.md)를 먼저 봐주세요. 실제로 만든 씬 5개와,
+그 씬을 만들 때 쓴 프롬프트 원문이 나란히 있습니다. 그대로 복사해서 써도 되고,
+숫자·색·문구만 바꿔서 시작해도 됩니다.
 
 ### 프롬프트를 잘 쓰는 요령
 
@@ -237,7 +237,7 @@ Studio/`)에 저장되므로, 나중에 새 버전 앱으로 덮어써도 작업
 
 | 명령 | 하는 일 |
 | --- | --- |
-| `npm install` | 의존성 설치 + `public/canvaskit.wasm` 생성 + 예시 프로젝트 심기(`public/projects/`가 비어있을 때만 `examples/`에서 복사) |
+| `npm install` | 의존성 설치 + `public/canvaskit.wasm` 생성 |
 | `npm run dev` | 플레이어 dev 서버 (포트 3030) |
 | `npm run app` | 빌드 후 앱을 바로 실행 (앱 개발용) |
 | `npm run dist:mac` | 배포용 앱(dmg) 빌드 → `release/` |
@@ -311,10 +311,12 @@ public/projects/
 (`/<project>/<scene>`)가 됩니다.
 
 `public/projects/`는 로컬 작업 공간이라 git에 커밋되지 않습니다
-(`.gitignore`). 저장소에 실제로 커밋되는 예시 갤러리는 `examples/`에 있고,
-비어 있을 때만 그 내용을 복사해 넣습니다 — 앱은 첫 실행 때, 레포는
-`npm install`의 postinstall이 처리합니다. 이미 뭔가 있으면 어느 쪽도 절대
-덮어쓰지 않습니다.
+(`.gitignore`). 앱이든 레포든 **빈 상태로 시작하고**, 여기에 들어가는 것은
+전부 직접 만든 것입니다 — 어떤 경로로도 자동으로 채워 넣지 않습니다.
+
+[`docs/EXAMPLES.md`](docs/EXAMPLES.md)에 소개된 씬의 완성 파일은 저장소의
+`examples/` 폴더에 있습니다. 보고 싶으면 `lottie.json`을 캔버스에 끌어다
+놓으면 새 씬으로 열립니다.
 
 ### 출고 전 체크리스트
 

@@ -90,8 +90,9 @@ function workspaceManifest(): string {
 
 /**
  * Populate a relocated workspace from the app bundle. Agent assets are refreshed
- * on every run so an app update ships new skill references, but `public/projects/`
- * is only ever seeded when empty — that is the designer's own work.
+ * on every run so an app update ships new skill references. Nothing is ever
+ * written into the projects tree: the studio starts empty and everything in
+ * there is the designer's own.
  */
 export function seedWorkspace(sourceRoot: string, ws: Workspace): void {
   fs.mkdirSync(ws.projectsDir, { recursive: true });
@@ -111,9 +112,4 @@ export function seedWorkspace(sourceRoot: string, ws: Workspace): void {
   }
 
   fs.writeFileSync(path.join(ws.root, "package.json"), workspaceManifest());
-
-  if (fs.readdirSync(ws.projectsDir).length === 0) {
-    const examples = path.join(sourceRoot, "examples");
-    if (fs.existsSync(examples)) fs.cpSync(examples, ws.projectsDir, { recursive: true });
-  }
 }
