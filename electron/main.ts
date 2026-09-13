@@ -1,7 +1,8 @@
 import path from "node:path";
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { startStudioServer, type StudioServer } from "./server";
 import { defaultWorkspaceDir, resolveWorkspace, seedWorkspace } from "../vite-plugins/workspace";
+import { cancelLogin, installClaudeCode, readSetupStatus, startLogin, submitLoginCode } from "./setup";
 
 /**
  * Packaged entry point.
@@ -56,11 +57,83 @@ function createWindow(url: string): void {
   void mainWindow.loadURL(url);
 }
 
+/**
+ * Blocks startup until the agent is installed and signed in, walking the
+ * designer through both in-app. Resolves false when the window is closed
+ * without finishing, which means the app should not start.
+ */
+function ensureSetup(): Promise<boolean> {
+  if (readSetupStatus().ready) return Promise.resolve(true);
+
+  return new Promise((resolve) => {
+    const win = new BrowserWindow({
+      width: 560,
+      height: 480,
+      resizable: false,
+      title: "Lottie Studio",
+      backgroundColor: "#0b0b0c",
+      show: false,
+      webPreferences: {
+        preload: path.join(__dirname, "preload.cjs"),
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+    });
+
+    let finished = false;
+
+    ipcMain.handle("setup:status", () => readSetupStatus());
+    ipcMain.handle("setup:install", async () => {
+      try {
+        await installClaudeCode((line) => win.webContents.send("setup:progress", line));
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    });
+    ipcMain.handle("setup:login-start", () =>
+      startLogin((line) => win.webContents.send("setup:progress", line)),
+    );
+    ipcMain.handle("setup:login-code", (_event, code: string) => submitLoginCode(code));
+    ipcMain.handle("setup:open-url", async (_event, target: string) => {
+      await shell.openExternal(target);
+      return { ok: true };
+    });
+    ipcMain.handle("setup:finish", () => {
+      finished = true;
+      win.close();
+    });
+
+    win.on("closed", () => {
+      cancelLogin();
+      for (const channel of [
+        "setup:status",
+        "setup:install",
+        "setup:login-start",
+        "setup:login-code",
+        "setup:open-url",
+        "setup:finish",
+      ]) {
+        ipcMain.removeHandler(channel);
+      }
+      resolve(finished);
+    });
+
+    win.once("ready-to-show", () => win.show());
+    void win.loadFile(path.join(__dirname, "onboarding.html"));
+  });
+}
+
 async function boot(): Promise<void> {
   const workspaceRoot = process.env.LOTTIE_STUDIO_WORKSPACE?.trim() || defaultWorkspaceDir();
   const workspace = resolveWorkspace(workspaceRoot);
 
   seedWorkspace(seedRoot(), workspace);
+
+  if (!(await ensureSetup())) {
+    app.quit();
+    return;
+  }
 
   studio = await startStudioServer({
     distDir: distRoot(),
