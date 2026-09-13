@@ -102,6 +102,11 @@ export interface StudioServerOptions {
   port?: number;
   /** How many ports to try before giving up. */
   portAttempts?: number;
+  /**
+   * Opens the app's sign-in window. Handed to the mailbox so a session that
+   * expires while the app is open can be fixed from the chat panel.
+   */
+  onSignInRequested?: () => void;
 }
 
 /**
@@ -174,7 +179,7 @@ export async function startStudioServer(options: StudioServerOptions): Promise<S
 
   const fakeConfig = { root: workspaceRoot, build: { outDir: distDir } };
 
-  for (const plugin of [scenesPlugin(), mailboxPlugin()]) {
+  for (const plugin of [scenesPlugin(), mailboxPlugin({ signIn: options.onSignInRequested })]) {
     const configResolved = plugin.configResolved;
     const configureServer = plugin.configureServer;
     if (typeof configResolved === "function") {

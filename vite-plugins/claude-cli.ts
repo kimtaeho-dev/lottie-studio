@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 
 /**
  * Locating the `claude` executable.
@@ -92,4 +92,32 @@ export function isLoggedIn(): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Whether the CLI positively reports that no account is signed in.
+ *
+ * Asynchronous — unlike `isLoggedIn()`, which blocks and is only safe during
+ * first-run setup — because this one runs inside the studio server, where a
+ * blocked event loop would stall the player and every open socket.
+ *
+ * An inconclusive answer (the call times out, the output does not parse) is
+ * reported as `false`, not as "signed out": telling someone their session
+ * expired when it did not is worse than falling back to a generic failure.
+ */
+export function isSignedOut(): Promise<boolean> {
+  const claude = resolveClaudePath();
+  if (!claude) return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    execFile(claude, ["auth", "status", "--json"], { timeout: 15000 }, (_err, stdout) => {
+      // Parsed regardless of the exit code: `auth status` can report a signed
+      // out account and exit non-zero at the same time.
+      try {
+        resolve((JSON.parse(stdout) as { loggedIn?: boolean }).loggedIn === false);
+      } catch {
+        resolve(false);
+      }
+    });
+  });
 }

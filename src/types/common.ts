@@ -49,6 +49,27 @@ export interface ChatAttachment {
   url: string;
 }
 
+/** Which Claude model a turn runs on. Mirrors the CLI's `--model` aliases. */
+export type ChatModel = "haiku" | "sonnet" | "opus";
+
+/** How much the model deliberates. Mirrors the CLI's `--effort` levels. */
+export type ChatEffort = "low" | "medium" | "high" | "max";
+
+/** The model settings a single turn was sent with. */
+export interface ChatSettings {
+  model: ChatModel;
+  effort: ChatEffort;
+}
+
+/**
+ * Why a turn failed, when the reason is that the agent has no signed-in
+ * account. Present only on a failed assistant message.
+ */
+export interface ChatAuthFailure {
+  /** True when the host can open a sign-in window itself — the packaged app can, a dev server cannot. */
+  canSignIn: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -56,4 +77,27 @@ export interface ChatMessage {
   status: "pending" | "processing" | "done" | "error" | "cancelled";
   createdAt: string;
   attachment?: ChatAttachment;
+  /** Assistant messages only: the settings this turn actually ran with. */
+  settings?: ChatSettings;
+  /** Assistant messages only: wall-clock time of a finished turn, in ms. */
+  durationMs?: number;
+  /** Set when this turn failed because the agent is signed out; the request can be sent again. */
+  auth?: ChatAuthFailure;
+}
+
+/**
+ * Live status of an in-flight turn, pushed as `chat:progress` while the agent
+ * works. Deliberately not persisted to `thread.json` — a single turn produces
+ * hundreds of these and only the final reply is worth keeping.
+ */
+export interface ChatProgress {
+  project: string;
+  /** The placeholder message this progress belongs to. */
+  messageId: string;
+  /** Short Korean label for what the agent is doing right now. */
+  step: string;
+  /** Optional second line: a filename, a plan step, the agent's own words. */
+  detail?: string;
+  /** Epoch ms the turn started, so the client can run its own timer. */
+  startedAt: number;
 }

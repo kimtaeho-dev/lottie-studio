@@ -58,13 +58,28 @@ function createWindow(url: string): void {
 }
 
 /**
+ * The setup window, if one is open. Sign-in can now be reached from two places
+ * — startup, and a session that expired while the app was running — and the
+ * window registers IPC handlers by name, so a second one must never open.
+ */
+let setupWindow: Promise<boolean> | null = null;
+
+/**
  * Blocks startup until the agent is installed and signed in, walking the
  * designer through both in-app. Resolves false when the window is closed
  * without finishing, which means the app should not start.
  */
 function ensureSetup(): Promise<boolean> {
   if (readSetupStatus().ready) return Promise.resolve(true);
+  if (setupWindow) return setupWindow;
 
+  setupWindow = openSetupWindow();
+  return setupWindow.finally(() => {
+    setupWindow = null;
+  });
+}
+
+function openSetupWindow(): Promise<boolean> {
   return new Promise((resolve) => {
     const win = new BrowserWindow({
       width: 560,
@@ -138,6 +153,15 @@ async function boot(): Promise<void> {
   studio = await startStudioServer({
     distDir: distRoot(),
     workspaceRoot: workspace.root,
+    // A session that expires while the app is open reopens the same setup
+    // window the first run uses — it already handles "installed but signed
+    // out". Unlike at startup, closing it without signing in is not fatal:
+    // the studio stays open and the request can be retried later.
+    onSignInRequested: () => {
+      void ensureSetup().then((ok) => {
+        if (ok) mainWindow?.focus();
+      });
+    },
   });
 
   createWindow(studio.url);

@@ -1,5 +1,5 @@
-import { createEffect, createSignal, For, Show } from "solid-js";
-import { Paperclip, RotateCcw, Send, X } from "lucide-solid";
+import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import { ChevronDown, Paperclip, RotateCcw, Send, X } from "lucide-solid";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -12,13 +12,206 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Markdown } from "@/lib/markdown";
 import { useChat, type PendingAttachment } from "@/context/chat";
+import type { ChatEffort, ChatMessage, ChatModel } from "@/types";
 
 const MAX_TEXTAREA_HEIGHT = 128; // px — grows up to this, then scrolls internally
 
 // Kept in sync with MAX_ATTACHMENT_BYTES in vite-plugins/mailbox.ts — checked
 // client-side too so a huge file fails fast instead of round-tripping.
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+// The models and effort levels, named for what they get you rather than for
+// what they are — the model name is the hint, not the label.
+const MODELS: { value: ChatModel; label: string; hint: string }[] = [
+  { value: "haiku", label: "빠르게", hint: "Haiku · 색이나 값만 바꿀 때" },
+  { value: "sonnet", label: "기본", hint: "Sonnet · 대부분의 작업" },
+  { value: "opus", label: "꼼꼼하게", hint: "Opus · 씬을 새로 만들 때" },
+];
+
+const EFFORTS: { value: ChatEffort; label: string }[] = [
+  { value: "low", label: "적게" },
+  { value: "medium", label: "보통" },
+  { value: "high", label: "많이" },
+  { value: "max", label: "최대한" },
+];
+
+const modelLabel = (model: ChatModel) => MODELS.find((m) => m.value === model)?.label ?? model;
+
+/** 95_000 -> "1분 35초". */
+function formatDuration(ms: number): string {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  const minutes = Math.floor(seconds / 60);
+  return minutes > 0 ? `${minutes}분 ${seconds % 60}초` : `${seconds}초`;
+}
+
+/** Same, but rounded hard — this one is a guess and should not look precise. */
+function formatApprox(ms: number): string {
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${Math.max(10, Math.round(seconds / 10) * 10)}초`;
+  return `${Math.max(1, Math.round(seconds / 60))}분`;
+}
+
+/**
+ * What the agent is doing right now, for one in-flight turn. The elapsed timer
+ * runs client-side so the line keeps moving between progress pushes — a turn
+ * can spend a minute inside a single step.
+ */
+function TurnStatus(props: { message: ChatMessage; onCancel: () => void }) {
+  const { progress, typicalDurationMs } = useChat();
+  const [now, setNow] = createSignal(Date.now());
+
+  const timer = setInterval(() => setNow(Date.now()), 1000);
+  onCleanup(() => clearInterval(timer));
+
+  // Progress belongs to a specific turn; an older one's line must not linger
+  // on this message.
+  const current = () => {
+    const value = progress();
+    return value && value.messageId === props.message.id ? value : null;
+  };
+
+  const step = () => {
+    if (props.message.status === "pending") return "차례를 기다리는 중";
+    return current()?.step ?? "시작하는 중";
+  };
+
+  const elapsed = () => {
+    const startedAt = current()?.startedAt;
+    return startedAt ? now() - startedAt : 0;
+  };
+
+  return (
+    <div class="flex flex-col gap-1">
+      <div class="flex items-center gap-1.5 text-muted-foreground">
+        <span class="size-1.5 shrink-0 rounded-full bg-current animate-pulse" />
+        <span class="min-w-0 truncate">{step()}…</span>
+        <button
+          type="button"
+          onClick={props.onCancel}
+          class="ml-auto inline-flex shrink-0 items-center justify-center rounded-sm hover:text-foreground focus-ring"
+          aria-label="요청 취소"
+        >
+          <X class="size-3.5" />
+        </button>
+      </div>
+
+      <Show when={current()?.detail}>
+        {(detail) => <span class="line-clamp-2 text-muted-foreground/80">{detail()}</span>}
+      </Show>
+
+      <Show when={props.message.status === "processing"}>
+        <span class="text-muted-foreground/80">
+          {formatDuration(elapsed())} 지남
+          <Show when={typicalDurationMs()}>
+            {(typical) => <> · 보통 {formatApprox(typical())}쯤 걸려요</>}
+          </Show>
+        </span>
+      </Show>
+    </div>
+  );
+}
+
+/**
+ * Recovery for a turn that failed because the agent is signed out. The message
+ * itself explains what happened; these are the two ways out of it.
+ */
+function AuthRecovery(props: { message: ChatMessage }) {
+  const { retry, signIn } = useChat();
+  const [signingIn, setSigningIn] = createSignal(false);
+
+  const handleSignIn = async () => {
+    setSigningIn(true);
+    try {
+      await signIn();
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  return (
+    <div class="mt-1.5 flex flex-wrap gap-1.5">
+      <Show when={props.message.auth?.canSignIn}>
+        <Button size="xs" variant="secondary" onClick={handleSignIn} disabled={signingIn()}>
+          다시 로그인
+        </Button>
+      </Show>
+      <Button size="xs" variant="secondary" onClick={() => void retry(props.message.id)}>
+        다시 보내기
+      </Button>
+    </div>
+  );
+}
+
+/** Model picker for the next message. Applies from the next turn on. */
+function SettingsMenu() {
+  const { settings, setSettings } = useChat();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger class="flex items-center gap-0.5 text-xxs text-muted-foreground hover:text-foreground focus-ring rounded-sm">
+        <span>{modelLabel(settings().model)}</span>
+        <ChevronDown class="size-3" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        {/* The label lives inside the radio group: Kobalte's menu label needs a
+            group context, and a radio group is one. */}
+        <DropdownMenuRadioGroup
+          value={settings().model}
+          onChange={(value) => setSettings({ ...settings(), model: value as ChatModel })}
+        >
+          <DropdownMenuLabel>어떻게 만들까요</DropdownMenuLabel>
+          <For each={MODELS}>
+            {(option) => (
+              <DropdownMenuRadioItem value={option.value} closeOnSelect={false}>
+                <div class="flex flex-col">
+                  <span>{option.label}</span>
+                  <span class="text-muted-foreground">{option.hint}</span>
+                </div>
+              </DropdownMenuRadioItem>
+            )}
+          </For>
+        </DropdownMenuRadioGroup>
+
+        <DropdownMenuSeparator />
+        <Show
+          when={settings().model !== "haiku"}
+          fallback={
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>얼마나 공들일까요</DropdownMenuLabel>
+              <div class="px-2 py-1.5 text-xxs text-muted-foreground">'빠르게'는 조절할 수 없어요.</div>
+            </DropdownMenuGroup>
+          }
+        >
+          <DropdownMenuRadioGroup
+            value={settings().effort}
+            onChange={(value) => setSettings({ ...settings(), effort: value as ChatEffort })}
+          >
+            <DropdownMenuLabel>얼마나 공들일까요</DropdownMenuLabel>
+            <For each={EFFORTS}>
+              {(option) => (
+                <DropdownMenuRadioItem value={option.value} closeOnSelect={false}>
+                  {option.label}
+                </DropdownMenuRadioItem>
+              )}
+            </For>
+          </DropdownMenuRadioGroup>
+        </Show>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export function ChatPanel() {
   const { messages, sending, send, cancel, reset } = useChat();
@@ -137,25 +330,28 @@ export function ChatPanel() {
 
       <div class="flex items-center justify-between h-12 px-3 pl-4 border-b border-border shrink-0">
         <span class="text-xxs font-strong text-foreground">에이전트</span>
-        <Show when={messages().length > 0}>
-          <AlertDialog>
-            <AlertDialogTrigger as={Button} size="icon" variant="ghost" aria-label="세션 초기화">
-              <RotateCcw />
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>세션을 초기화할까요?</AlertDialogTitle>
-                <AlertDialogDescription>지금까지 나눈 대화가 모두 사라져요. 새로 시작할까요?</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>취소</AlertDialogCancel>
-                <AlertDialogAction variant="destructive" onClick={() => void reset()}>
-                  초기화
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </Show>
+        <div class="flex items-center gap-2">
+          <SettingsMenu />
+          <Show when={messages().length > 0}>
+            <AlertDialog>
+              <AlertDialogTrigger as={Button} size="icon" variant="ghost" aria-label="세션 초기화">
+                <RotateCcw />
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>세션을 초기화할까요?</AlertDialogTitle>
+                  <AlertDialogDescription>지금까지 나눈 대화가 모두 사라져요. 새로 시작할까요?</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>취소</AlertDialogCancel>
+                  <AlertDialogAction variant="destructive" onClick={() => void reset()}>
+                    초기화
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </Show>
+        </div>
       </div>
 
       <div ref={listRef} class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2 px-3 py-3">
@@ -175,9 +371,10 @@ export function ChatPanel() {
             {(message) => (
               <div class="flex" classList={{ "justify-end": message.role === "user" }}>
                 <div
-                  class="max-w-[85%] rounded-lg px-2.5 py-1.5 text-xxs whitespace-pre-wrap break-words"
+                  class="rounded-lg px-2.5 py-1.5 text-xxs break-words"
                   classList={{
-                    "bg-foreground text-background": message.role === "user",
+                    "max-w-[85%] whitespace-pre-wrap bg-foreground text-background": message.role === "user",
+                    "max-w-[92%]": message.role === "assistant",
                     "bg-muted text-foreground": message.role === "assistant" && message.status !== "error",
                     "bg-destructive/10 text-destructive": message.status === "error",
                   }}
@@ -196,22 +393,27 @@ export function ChatPanel() {
                     )}
                   </Show>
                   <Show when={message.status === "pending" || message.status === "processing"}>
-                    <div class="flex items-center gap-1.5 text-muted-foreground">
-                      <span>{message.status === "pending" ? "대기 중…" : "생각 중…"}</span>
-                      <button
-                        type="button"
-                        onClick={() => cancel(message.id)}
-                        class="inline-flex items-center justify-center rounded-sm hover:text-foreground focus-ring"
-                        aria-label="요청 취소"
-                      >
-                        <X class="size-3.5" />
-                      </button>
-                    </div>
+                    <TurnStatus message={message} onCancel={() => cancel(message.id)} />
                   </Show>
                   <Show when={message.status === "cancelled"}>
                     <span class="text-muted-foreground italic">요청을 취소했어요.</span>
                   </Show>
-                  <Show when={message.status === "done" || message.status === "error"}>{message.text}</Show>
+                  <Show when={message.status === "done" || message.status === "error"}>
+                    <Show when={message.role === "assistant"} fallback={message.text}>
+                      <Markdown text={message.text} />
+                    </Show>
+                  </Show>
+                  <Show when={message.auth}>
+                    <AuthRecovery message={message} />
+                  </Show>
+                  <Show when={message.status === "done" && message.settings}>
+                    {(settings) => (
+                      <span class="mt-1 block text-muted-foreground">
+                        {modelLabel(settings().model)}
+                        <Show when={message.durationMs}>{(ms) => <> · {formatDuration(ms())}</>}</Show>
+                      </span>
+                    )}
+                  </Show>
                 </div>
               </div>
             )}
