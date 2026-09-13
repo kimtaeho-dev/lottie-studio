@@ -47,3 +47,7 @@ canvaskit.wasm
 # locally. Not shipped in git; docs/EXAMPLES.md's example gallery lives under
 # examples/ instead.
 /public/projects/
+
+# Packaged app output
+/release
+/dist-electron
