@@ -1,29 +1,100 @@
-# lottie-studio
+<p align="center">
+  <img src="public/mark.svg" width="92" height="92" alt="Lottie Studio">
+</p>
 
-디자이너를 위한 **프로덕션용 Lottie 애니메이션** 제작 도구입니다. 코딩
-에이전트가 Lottie 파일을 직접 쓰고, 로컬 플레이어가 바로 화면에 그려줍니다.
+<h1 align="center">Lottie Studio</h1>
 
-미리보기 화면과 실제 서비스에 쓰이는 화면은 완전히 같지 않아서, 미리보기에서는
-멀쩡해 보여도 실제 서비스에서는 다르게 보일 수 있습니다. 이 차이를 확인하고
-메꾸는 작업은 전부 에이전트가 알아서 처리하니, 아래 가이드를 따라가는 동안
-코드나 JSON을 직접 들여다볼 일은 없습니다.
+<p align="center">
+  <b>말로 만드는, 바로 쓸 수 있는 Lottie 애니메이션</b><br>
+  원하는 움직임을 문장으로 설명하면 AI 에이전트가 애니메이션 파일을 쓰고,<br>
+  그 자리에서 재생해 보여줍니다. 마음에 들 때까지 말로 고치고, 버튼 한 번으로 내보냅니다.
+</p>
 
-## 30초 요약
+<p align="center">
+  <img alt="macOS 앱" src="https://img.shields.io/badge/macOS-%EC%95%B1(dmg)-111?style=flat-square">
+  <img alt="터미널 필요 없음" src="https://img.shields.io/badge/%ED%84%B0%EB%AF%B8%EB%84%90-%ED%95%84%EC%9A%94%EC%97%86%EC%9D%8C-2F6BFF?style=flat-square">
+  <img alt="출력 Lottie JSON" src="https://img.shields.io/badge/%EC%B6%9C%EB%A0%A5-Lottie%20JSON-3CE0C0?style=flat-square">
+  <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-777?style=flat-square">
+</p>
 
-피그마처럼 화면을 보면서 작업하지만, 실제로 애니메이션 파일을 쓰는 건 AI
-에이전트입니다. 할 일은 딱 세 가지입니다.
+<p align="center">
+  <a href="https://github.com/kimtaeho-dev/lottie-studio/releases/latest"><b>↓ 앱 다운로드</b></a>
+  &nbsp;·&nbsp;
+  <a href="docs/EXAMPLES.md">예시 갤러리</a>
+  &nbsp;·&nbsp;
+  <a href="#사용-가이드">사용 가이드</a>
+  &nbsp;·&nbsp;
+  <a href="#h-용어집">용어집</a>
+</p>
 
-1. **말합니다** — 원하는 애니메이션을 에이전트에게 설명합니다.
-2. **봅니다** — 플레이어 화면에서 재생해보고, 마음에 안 들면 다시 말합니다.
-3. **내보냅니다** — 완성되면 Export 버튼으로 파일을 받습니다.
+<p align="center">
+  <img src="docs/media/apple-tumble.gif" width="320" height="320" alt="3D 사과가 한 바퀴 굴러 제자리로 돌아오는 Lottie 애니메이션">
+</p>
 
-터미널이나 코드는 물론, git도 몰라도 괜찮습니다. 앱을 받아서 열면 나머지는
-앱이 알아서 준비합니다. 이 문서는 앱을 받는 순간부터 완성본을 내보내는 순간까지
-순서대로 따라가면 되도록 A→H로 구성했습니다.
+<p align="center">
+  <sub>이 사과도 이 도구로 만든 씬입니다 — 512×512 · 60fps · 3초 무한 루프 · 117KB</sub>
+</p>
 
 ---
 
-## 목차
+## 세 단계로 끝납니다
+
+|  | 하는 일 | 걸리는 시간 |
+| --- | --- | --- |
+| **1. 말합니다** | 화면 오른쪽 아래 채팅창에 원하는 애니메이션을 설명합니다. "로고가 그려지듯 나타나고 살짝 튕기면서 멈춰줘" 정도면 충분합니다 | 한 문장 |
+| **2. 봅니다** | 에이전트가 파일을 쓰는 즉시 캔버스에서 재생됩니다. 색·숫자는 오른쪽 속성 패널에서 직접 만지고, 나머지는 다시 말하면 고쳐줍니다 | 몇 초 |
+| **3. 내보냅니다** | **Export** 버튼으로 zip을 받아 개발자에게 넘기면 끝입니다 | 클릭 한 번 |
+
+코드, JSON, 터미널, git — 하나도 몰라도 됩니다. 앱을 받아서 열면 나머지 준비는
+앱이 알아서 합니다.
+
+---
+
+## 이런 걸 만듭니다
+
+실제로 이 도구로 만든 씬들입니다. 프롬프트 원문과 완성 파일은
+[예시 갤러리](docs/EXAMPLES.md)에 그대로 있습니다 — 숫자·색만 바꿔 복사해 쓰면
+비슷한 결과가 바로 나옵니다.
+
+| 씬 | 어떤 움직임인가 | 규격 |
+| --- | --- | --- |
+| **로고 리빌** | 외곽선이 먼저 그려지고, 색이 채워지며 살짝 튕기듯 정착 | 512×512 · 투명 · 2초 |
+| **로딩 스피너** | 꼬리 달린 원호가 끊김 없이 계속 도는 로더 | 512×512 · 투명 · 1.2초 루프 |
+| **데이터 리빌** | 퍼센트가 차오르는 링 + 막대 5개가 시간차로 올라옴 | 1920×1080 · 2.5초 |
+| **카메라 무빙** | 화면이 가까워지며 옆으로 훑어 최종 구도에 맞춰짐 | 1920×1080 · 3초 |
+| **대결 게이지 바** | 두 팀이 좌우로 밀고 버티는 터그오브워, 무한 루프 | 1600×900 · 투명 · 루프 |
+
+---
+
+## 왜 이 도구인가
+
+**미리보기와 실제 화면이 같게 보입니다.**
+애니메이션은 미리보기 화면과 실제 서비스 화면에서 다르게 보이는 일이 흔합니다.
+이 도구는 씬을 만들거나 고칠 때마다 그 차이를 자동으로 검사해 에이전트가 미리
+메꿉니다. 사용자가 명령어를 칠 일도, JSON을 들여다볼 일도 없습니다.
+
+**기다리지 않고 봅니다.**
+에이전트가 파일을 고치면 캔버스가 바로 갱신됩니다. 새로고침도, 저장 버튼도
+없습니다.
+
+**색과 숫자는 직접 만집니다.**
+열어달라고 요청한 값(색상·숫자·텍스트)은 오른쪽 속성 패널에서 슬라이더와 색상
+선택기로 조정할 수 있고, 바꾸는 즉시 파일에 반영됩니다.
+
+**넘기기 좋은 형태로 나옵니다.**
+Export하면 `animations/`, `images/`, `fonts/`가 담긴 zip이 떨어집니다. 그대로
+개발자에게 전달하면 됩니다.
+
+**작업물은 내 컴퓨터에 남습니다.**
+만든 씬은 앱 안이 아니라 내 사용자 폴더에 저장되므로, 새 버전 앱으로 덮어써도
+사라지지 않습니다.
+
+---
+
+# 사용 가이드
+
+앱을 받는 순간부터 완성본을 내보내는 순간까지, 순서대로 따라가면 되도록 A→H로
+정리했습니다.
 
 - [A. 앱 받아서 열기](#a-앱-받아서-열기)
 - [B. 처음 열 때 한 번만 — 에이전트 준비](#b-처음-열-때-한-번만--에이전트-준비)
@@ -330,16 +401,16 @@ public/projects/
 
 ---
 
-## 문서
+## 더 읽을 것
 
-- [`CLAUDE.md`](CLAUDE.md) — 에이전트가 비개발자 사용자를 응대하는 원칙
-- [`skills/text-to-lottie/references/renderer-constraints.md`](skills/text-to-lottie/references/renderer-constraints.md)
-  — BLOCK/WARN 목록, 각각의 이유와 대안, 안전 목록, 예산, 완료 조건
-- [`skills/text-to-lottie/references/player-contract.md`](skills/text-to-lottie/references/player-contract.md)
-  — 플레이어가 씬에 요구하는 계약(경로, 슬롯, 폰트, 텍스트)
-- [`skills/text-to-lottie/SKILL.md`](skills/text-to-lottie/SKILL.md)
-  — 에이전트가 따르는 스킬 규칙
-- [`docs/UPSTREAM.md`](docs/UPSTREAM.md) — upstream 변경을 가져오는 절차
+| 문서 | 내용 |
+| --- | --- |
+| [`docs/EXAMPLES.md`](docs/EXAMPLES.md) | 예시 갤러리 — 프롬프트 원문과 결과 씬 |
+| [`CLAUDE.md`](CLAUDE.md) | 에이전트가 비개발자 사용자를 응대하는 원칙 |
+| [`skills/text-to-lottie/SKILL.md`](skills/text-to-lottie/SKILL.md) | 에이전트가 따르는 씬 제작 규칙 |
+| [`skills/text-to-lottie/references/renderer-constraints.md`](skills/text-to-lottie/references/renderer-constraints.md) | BLOCK/WARN 목록, 각각의 이유와 대안, 안전 목록, 예산, 완료 조건 |
+| [`skills/text-to-lottie/references/player-contract.md`](skills/text-to-lottie/references/player-contract.md) | 플레이어가 씬에 요구하는 계약(경로, 슬롯, 폰트, 텍스트) |
+| [`docs/UPSTREAM.md`](docs/UPSTREAM.md) | upstream 변경을 가져오는 절차 |
 
 ---
 
